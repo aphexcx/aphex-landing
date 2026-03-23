@@ -278,6 +278,42 @@ function generateLogoTargets(particleCount) {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
+  // --- Mouse/touch interaction ---
+  var PUSH_RADIUS = 1.5;
+  var PUSH_STRENGTH = 0.15;
+  var SPRING_STIFFNESS = 0.03;
+  var DAMPING = 0.85;
+
+  var mouseWorld = new THREE.Vector3(9999, 9999, 0); // offscreen
+  var mouseNDC = new THREE.Vector2();
+  var raycaster = new THREE.Raycaster();
+  var intersectPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // z=0 plane
+  var intersectPoint = new THREE.Vector3();
+
+  function updateMouse(clientX, clientY) {
+    mouseNDC.x = (clientX / window.innerWidth) * 2 - 1;
+    mouseNDC.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouseNDC, camera);
+    if (raycaster.ray.intersectPlane(intersectPlane, intersectPoint)) {
+      mouseWorld.copy(intersectPoint);
+    }
+  }
+
+  if (!reducedMotion) {
+    window.addEventListener('mousemove', function (e) {
+      updateMouse(e.clientX, e.clientY);
+    });
+    window.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        updateMouse(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: false });
+    window.addEventListener('touchend', function () {
+      mouseWorld.set(9999, 9999, 0);
+    });
+  }
+
   // --- Phase management ---
   var COALESCE_DURATION = 2.5; // seconds
   var phase, phaseStartTime;
@@ -356,12 +392,40 @@ function generateLogoTargets(particleCount) {
       // Camera interpolation
       camera.position.lerpVectors(CAM_DRIFT_START, CAM_DRIFT_END, t);
 
-      // Brownian motion: small random offsets
+      // Velocity-based drift with brownian motion and mouse push
       for (var i = 0; i < PARTICLE_COUNT; i++) {
         var i3 = i * 3;
-        currentPositions[i3]     += (Math.random() - 0.5) * 0.01;
-        currentPositions[i3 + 1] += (Math.random() - 0.5) * 0.01;
-        currentPositions[i3 + 2] += (Math.random() - 0.5) * 0.01;
+        var px = currentPositions[i3];
+        var py = currentPositions[i3 + 1];
+        var pz = currentPositions[i3 + 2];
+
+        // Brownian: small random velocity additions
+        velocities[i3]     += (Math.random() - 0.5) * 0.004;
+        velocities[i3 + 1] += (Math.random() - 0.5) * 0.004;
+        velocities[i3 + 2] += (Math.random() - 0.5) * 0.002;
+
+        // Gentle spring back to scatter positions
+        velocities[i3]     += (scatterPositions[i3]     - px) * 0.005;
+        velocities[i3 + 1] += (scatterPositions[i3 + 1] - py) * 0.005;
+        velocities[i3 + 2] += (scatterPositions[i3 + 2] - pz) * 0.005;
+
+        // Mouse push force
+        var dmx = px - mouseWorld.x;
+        var dmy = py - mouseWorld.y;
+        var distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
+        if (distMouse < PUSH_RADIUS && distMouse > 0.001) {
+          var pushForce = PUSH_STRENGTH / (distMouse * distMouse);
+          velocities[i3]     += (dmx / distMouse) * pushForce;
+          velocities[i3 + 1] += (dmy / distMouse) * pushForce;
+        }
+
+        // Apply damping and integrate
+        velocities[i3]     *= DAMPING;
+        velocities[i3 + 1] *= DAMPING;
+        velocities[i3 + 2] *= DAMPING;
+        currentPositions[i3]     += velocities[i3];
+        currentPositions[i3 + 1] += velocities[i3 + 1];
+        currentPositions[i3 + 2] += velocities[i3 + 2];
       }
       posAttr.needsUpdate = true;
 
@@ -403,17 +467,45 @@ function generateLogoTargets(particleCount) {
     } else if (phase === 'rest') {
       // --- Rest phase ---
 
-      // Subtle particle oscillation around logo targets
+      // Spring physics with breathing offset and mouse push
       for (var i = 0; i < PARTICLE_COUNT; i++) {
         var i3 = i * 3;
         var seed = i * 0.1;
+        var px = currentPositions[i3];
+        var py = currentPositions[i3 + 1];
+        var pz = currentPositions[i3 + 2];
+
+        // Breathing offset (subtle oscillation target)
         var breathX = Math.sin(now * 0.8 + seed) * 0.008;
         var breathY = Math.cos(now * 0.6 + seed * 1.3) * 0.008;
         var breathZ = Math.sin(now * 0.7 + seed * 0.7) * 0.004;
 
-        currentPositions[i3]     = logoPositions[i3]     + breathX;
-        currentPositions[i3 + 1] = logoPositions[i3 + 1] + breathY;
-        currentPositions[i3 + 2] = logoPositions[i3 + 2] + breathZ;
+        var targetX = logoPositions[i3]     + breathX;
+        var targetY = logoPositions[i3 + 1] + breathY;
+        var targetZ = logoPositions[i3 + 2] + breathZ;
+
+        // Spring force toward target
+        velocities[i3]     += (targetX - px) * SPRING_STIFFNESS;
+        velocities[i3 + 1] += (targetY - py) * SPRING_STIFFNESS;
+        velocities[i3 + 2] += (targetZ - pz) * SPRING_STIFFNESS;
+
+        // Mouse push force (inverse-square within PUSH_RADIUS)
+        var dmx = px - mouseWorld.x;
+        var dmy = py - mouseWorld.y;
+        var distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
+        if (distMouse < PUSH_RADIUS && distMouse > 0.001) {
+          var pushForce = PUSH_STRENGTH / (distMouse * distMouse);
+          velocities[i3]     += (dmx / distMouse) * pushForce;
+          velocities[i3 + 1] += (dmy / distMouse) * pushForce;
+        }
+
+        // Damping and integrate
+        velocities[i3]     *= DAMPING;
+        velocities[i3 + 1] *= DAMPING;
+        velocities[i3 + 2] *= DAMPING;
+        currentPositions[i3]     += velocities[i3];
+        currentPositions[i3 + 1] += velocities[i3 + 1];
+        currentPositions[i3 + 2] += velocities[i3 + 2];
       }
       posAttr.needsUpdate = true;
 
