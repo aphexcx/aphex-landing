@@ -1,10 +1,12 @@
 // Aphex Landing — Particle System
 // Three.js r171 particle animation with logo coalesce and mouse interaction
 
-declare const THREE: typeof import('three');
+import * as THREE from 'three';
 
-interface Window {
-  __NO_WEBGL?: boolean;
+declare global {
+  interface Window {
+    __NO_WEBGL?: boolean;
+  }
 }
 
 interface LogoTargets {

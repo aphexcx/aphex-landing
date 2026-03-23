@@ -4,11 +4,16 @@
   "private": true,
   "description": "Aphex Corporation landing page",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmit && esbuild src/particles.ts --bundle --outfile=dist/particles.js --format=iife --minify --target=es2015",
+    "build:check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/three": "^0.171.0"
+    "@types/three": "^0.171.0",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "three": "^0.183.2"
   }
 }
