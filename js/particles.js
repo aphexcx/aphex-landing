@@ -175,3 +175,110 @@ function generateLogoTargets(particleCount) {
 
   return { positions: positions, aspect: W / H };
 }
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+(function main() {
+  'use strict';
+
+  // Skip if WebGL detection already failed
+  if (window.__NO_WEBGL) return;
+
+  // --- Device detection ---
+  var isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
+  var PARTICLE_COUNT = isMobile ? 4000 : 8000;
+  var DRIFT_DURATION = isMobile ? 2.0 : 4.0; // seconds
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // --- Generate logo target positions ---
+  var logo = generateLogoTargets(PARTICLE_COUNT);
+  var logoPositions = logo.positions; // Float32Array, length = PARTICLE_COUNT * 3
+
+  // --- Three.js setup ---
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+
+  var camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    100
+  );
+
+  var renderer = new THREE.WebGLRenderer({
+    antialias: true
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Prepend canvas to body (before other elements)
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+  // --- Particle geometry ---
+  var geometry = new THREE.BufferGeometry();
+  var SCATTER_RADIUS = 15;
+
+  var currentPositions = new Float32Array(PARTICLE_COUNT * 3);
+  var scatterPositions = new Float32Array(PARTICLE_COUNT * 3);
+  var velocities       = new Float32Array(PARTICLE_COUNT * 3); // starts at 0
+  var sizes            = new Float32Array(PARTICLE_COUNT);
+
+  for (var i = 0; i < PARTICLE_COUNT; i++) {
+    // Random scatter positions (spherical-ish distribution)
+    var theta = Math.random() * Math.PI * 2;
+    var phi   = Math.acos(2 * Math.random() - 1);
+    var r     = SCATTER_RADIUS * Math.cbrt(Math.random()); // cube root for uniform volume
+    var sx = r * Math.sin(phi) * Math.cos(theta);
+    var sy = r * Math.sin(phi) * Math.sin(theta);
+    var sz = r * Math.cos(phi);
+
+    scatterPositions[i * 3]     = sx;
+    scatterPositions[i * 3 + 1] = sy;
+    scatterPositions[i * 3 + 2] = sz;
+
+    // Current positions start at scatter positions
+    currentPositions[i * 3]     = sx;
+    currentPositions[i * 3 + 1] = sy;
+    currentPositions[i * 3 + 2] = sz;
+
+    // Per-particle size variation
+    sizes[i] = 0.03 + Math.random() * 0.02;
+  }
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+  // --- Particle material ---
+  var material = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.04,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  // --- Points mesh ---
+  var points = new THREE.Points(geometry, material);
+  scene.add(points);
+
+  // --- Camera position ---
+  camera.position.set(0, 0, 5); // inside the cloud
+
+  // --- Resize handler ---
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // --- Render loop ---
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+
+  animate();
+})();
