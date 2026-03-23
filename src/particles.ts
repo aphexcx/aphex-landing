@@ -208,10 +208,10 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   // --- Three.js setup ---
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0a);
-  // 3D fog — particles fade into grey mist at distance, like the Lionhead intro
-  // Density is set after camera rest distance is computed, so fog looks
-  // consistent regardless of how far back the camera needs to be.
-  const fog = new THREE.FogExp2(0x111111, 0.04);
+  // 3D fog — linear fog that only dims particles BEHIND the logo plane,
+  // creating depth without darkening the logo itself.
+  // near/far are set after camera rest distance is computed.
+  const fog = new THREE.Fog(0x111111, 1, 100);
   scene.fog = fog;
 
   const camera = new THREE.PerspectiveCamera(
@@ -354,17 +354,21 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   const LOGO_PADDING = 1.3; // 30% breathing room
   const halfFovRad = (camera.fov / 2) * Math.PI / 180;
 
-  const BASE_REST_Z = 12;       // reference distance where fog density 0.04 looks right
-  const BASE_FOG_DENSITY = 0.04;
+  const BASE_REST_Z = 12;
 
   function computeRestZ(): number {
     const minZ = (LOGO_WORLD_WIDTH * LOGO_PADDING / 2) / (Math.tan(halfFovRad) * camera.aspect);
     return Math.max(BASE_REST_Z, minZ); // never closer than 12 on wide screens
   }
 
-  // Scale fog so brightness is consistent at any camera distance
-  function updateFogForDistance(restZ: number): void {
-    fog.density = BASE_FOG_DENSITY * (BASE_REST_Z / restZ);
+  // Set fog so it starts just past the logo plane and fades out behind it.
+  // Logo particles sit at z≈0; camera sits at z=restZ.
+  // Distance from camera to logo = restZ.
+  // near = restZ * 0.9 → fog barely touches the logo
+  // far  = restZ * 2.5 → distant background particles fully fogged
+  function updateFogForDistance(rz: number): void {
+    fog.near = rz * 0.9;
+    fog.far  = rz * 2.5;
   }
 
   const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
