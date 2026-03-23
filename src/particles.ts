@@ -85,9 +85,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     // Middle bar (full width, same as E)
     const pBarY = midBarY + (midBarH - crossBarH) / 2;
     ctx.fillRect(x0, pBarY, letterWidth, crossBarH);
-    // Bottom stub — left-aligned square, same height as bars
-    const stubWidth = midBarH; // square: width = height
-    ctx.fillRect(x0, top + bandH * 4, stubWidth, midBarH);
+    // Bottom stub — left-aligned, same width as vertical stems
+    ctx.fillRect(x0, top + bandH * 4, stroke, midBarH);
   })();
 
   // ---- H: Block H — crossbar aligns with E's middle bar ----
