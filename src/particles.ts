@@ -92,12 +92,15 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   (function drawH(): void {
     const x0 = letterX(2);
     const top = padTop;
+    const bottom = top + letterHeight - midBarH;
+    const rightX = x0 + letterWidth - stroke;
 
-    // Left vertical
-    ctx.fillRect(x0, top, stroke, letterHeight);
-    // Right vertical
-    ctx.fillRect(x0 + letterWidth - stroke, top, stroke, letterHeight);
-    // Horizontal bar — same as E's middle bar
+    // Four corner stubs (same width as stroke)
+    ctx.fillRect(x0, top, stroke, midBarH);        // top-left
+    ctx.fillRect(rightX, top, stroke, midBarH);     // top-right
+    ctx.fillRect(x0, bottom, stroke, midBarH);      // bottom-left
+    ctx.fillRect(rightX, bottom, stroke, midBarH);  // bottom-right
+    // Floating crossbar — same as E's middle bar
     ctx.fillRect(x0, midBarY, letterWidth, midBarH);
   })();
 
