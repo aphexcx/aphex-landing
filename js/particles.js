@@ -264,8 +264,12 @@ function generateLogoTargets(particleCount) {
   var points = new THREE.Points(geometry, material);
   scene.add(points);
 
-  // --- Camera position ---
-  camera.position.set(0, 0, 5); // inside the cloud
+  // --- Camera positions for each phase ---
+  var CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
+  var CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
+  var CAM_REST         = new THREE.Vector3(0, 0, 12);   // framing distance
+
+  camera.position.copy(CAM_DRIFT_START);
 
   // --- Resize handler ---
   window.addEventListener('resize', function () {
@@ -274,9 +278,156 @@ function generateLogoTargets(particleCount) {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  // --- Render loop ---
+  // --- Phase management ---
+  var COALESCE_DURATION = 2.5; // seconds
+  var phase, phaseStartTime;
+  var emailOverlay = document.getElementById('email-overlay');
+  var emailShown = false;
+
+  // Cubic ease-out: 1 - (1 - t)^3
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  // Linear interpolation helper
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  // --- Reduced motion: skip animation entirely ---
+  if (reducedMotion) {
+    phase = 'rest';
+    phaseStartTime = performance.now() / 1000;
+    // Set particles directly to logo targets
+    for (var i = 0; i < PARTICLE_COUNT; i++) {
+      currentPositions[i * 3]     = logoPositions[i * 3];
+      currentPositions[i * 3 + 1] = logoPositions[i * 3 + 1];
+      currentPositions[i * 3 + 2] = logoPositions[i * 3 + 2];
+    }
+    geometry.attributes.position.needsUpdate = true;
+    camera.position.copy(CAM_REST);
+    // Show email immediately
+    if (emailOverlay) {
+      emailOverlay.classList.add('visible');
+      emailShown = true;
+    }
+  } else {
+    phase = 'drift';
+    phaseStartTime = performance.now() / 1000;
+  }
+
+  // --- Pre-compute per-particle stagger for coalesce ---
+  var staggerOffsets = new Float32Array(PARTICLE_COUNT);
+  (function computeStagger() {
+    // Particles closer to their target arrive sooner
+    var maxDist = 0;
+    for (var i = 0; i < PARTICLE_COUNT; i++) {
+      var dx = scatterPositions[i * 3]     - logoPositions[i * 3];
+      var dy = scatterPositions[i * 3 + 1] - logoPositions[i * 3 + 1];
+      var dz = scatterPositions[i * 3 + 2] - logoPositions[i * 3 + 2];
+      var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      staggerOffsets[i] = d;
+      if (d > maxDist) maxDist = d;
+    }
+    // Normalize to 0..1  (0 = arrives first, 1 = arrives last)
+    if (maxDist > 0) {
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        staggerOffsets[i] /= maxDist;
+      }
+    }
+  })();
+
+  // Snapshot of camera at start of coalesce (set when transitioning)
+  var camCoalesceStart = new THREE.Vector3();
+
+  // --- Animate ---
   function animate() {
     requestAnimationFrame(animate);
+
+    var now = performance.now() / 1000;
+    var elapsed = now - phaseStartTime;
+
+    var posAttr = geometry.attributes.position;
+
+    if (phase === 'drift') {
+      // --- Drift phase ---
+      var t = Math.min(elapsed / DRIFT_DURATION, 1);
+
+      // Camera interpolation
+      camera.position.lerpVectors(CAM_DRIFT_START, CAM_DRIFT_END, t);
+
+      // Brownian motion: small random offsets
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        var i3 = i * 3;
+        currentPositions[i3]     += (Math.random() - 0.5) * 0.01;
+        currentPositions[i3 + 1] += (Math.random() - 0.5) * 0.01;
+        currentPositions[i3 + 2] += (Math.random() - 0.5) * 0.01;
+      }
+      posAttr.needsUpdate = true;
+
+      // Transition to coalesce
+      if (t >= 1) {
+        phase = 'coalesce';
+        phaseStartTime = now;
+        camCoalesceStart.copy(camera.position);
+      }
+
+    } else if (phase === 'coalesce') {
+      // --- Coalesce phase ---
+      var rawT = Math.min(elapsed / COALESCE_DURATION, 1);
+
+      // Camera: cubic ease-out toward rest
+      var camT = easeOutCubic(rawT);
+      camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
+
+      // Per-particle interpolation with stagger
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        var i3 = i * 3;
+        // stagger: particle's local progress (delayed by distance)
+        var staggerDelay = staggerOffsets[i] * 0.4; // max 40% delay
+        var localT = Math.min(Math.max((rawT - staggerDelay) / (1 - staggerDelay), 0), 1);
+        var eased = easeOutCubic(localT);
+
+        currentPositions[i3]     = lerp(scatterPositions[i3],     logoPositions[i3],     eased);
+        currentPositions[i3 + 1] = lerp(scatterPositions[i3 + 1], logoPositions[i3 + 1], eased);
+        currentPositions[i3 + 2] = lerp(scatterPositions[i3 + 2], logoPositions[i3 + 2], eased);
+      }
+      posAttr.needsUpdate = true;
+
+      // Transition to rest
+      if (rawT >= 1) {
+        phase = 'rest';
+        phaseStartTime = now;
+      }
+
+    } else if (phase === 'rest') {
+      // --- Rest phase ---
+
+      // Subtle particle oscillation around logo targets
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        var i3 = i * 3;
+        var seed = i * 0.1;
+        var breathX = Math.sin(now * 0.8 + seed) * 0.008;
+        var breathY = Math.cos(now * 0.6 + seed * 1.3) * 0.008;
+        var breathZ = Math.sin(now * 0.7 + seed * 0.7) * 0.004;
+
+        currentPositions[i3]     = logoPositions[i3]     + breathX;
+        currentPositions[i3 + 1] = logoPositions[i3 + 1] + breathY;
+        currentPositions[i3 + 2] = logoPositions[i3 + 2] + breathZ;
+      }
+      posAttr.needsUpdate = true;
+
+      // Imperceptible camera drift
+      camera.position.x = CAM_REST.x + Math.sin(now * 0.15) * 0.05;
+      camera.position.y = CAM_REST.y + Math.cos(now * 0.12) * 0.05;
+
+      // Show email overlay after 1s in rest
+      if (!emailShown && elapsed > 1 && emailOverlay) {
+        emailOverlay.classList.add('visible');
+        emailShown = true;
+      }
+    }
+
     renderer.render(scene, camera);
   }
 
