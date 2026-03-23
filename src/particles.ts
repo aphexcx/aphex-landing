@@ -270,6 +270,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       attribute float size;
       uniform float uTime;
       uniform float uPixelRatio;
+      uniform float fogDensity;
       varying float vAlpha;
       varying float vFlicker;
       varying float vFogFactor;
