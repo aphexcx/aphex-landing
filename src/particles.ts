@@ -527,14 +527,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       // --- Coalesce phase ---
       const rawT = Math.min(elapsed / COALESCE_DURATION, 1);
 
-      // Camera: smooth ease-in-out with subtle arc
-      const camT = easeInOutQuart(rawT);
-      // Interpolate with a slight vertical arc — camera dips then rises
+      // Camera: cubic ease-out toward rest
+      const camT = easeOutCubic(rawT);
       camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
-      // Add arc: sine curve peaks at midpoint, creating a natural swoop
-      const arcHeight = Math.sin(rawT * Math.PI) * 0.6;
-      camera.position.y += arcHeight;
-      camera.position.x += Math.sin(rawT * Math.PI) * -0.3; // slight lateral sweep
 
       // Per-particle interpolation with stagger
       for (let i = 0; i < PARTICLE_COUNT; i++) {
