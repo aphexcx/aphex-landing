@@ -75,22 +75,19 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.restore();
   })();
 
-  // ---- P: Block P — bowl bottom aligns with E's middle bar ----
+  // ---- P: ≡-style with short bottom stub evoking a P's descending stem ----
   (function drawP(): void {
     const x0 = letterX(1);
     const top = padTop;
-    // Bowl bottom = bottom edge of middle bar (aligned with E's middle bar)
-    const bowlBottom = midBarY + midBarH;
 
-    // Full vertical stem
-    ctx.fillRect(x0, top, stroke, letterHeight);
-    // Top horizontal bar
-    ctx.fillRect(x0, top, letterWidth, stroke);
-    // Right side of bowl
-    ctx.fillRect(x0 + letterWidth - stroke, top, stroke, bowlBottom - top);
-    // Bottom of bowl — vertically centered on E's middle bar, optically thinner
+    // Top bar (full width, same as E)
+    ctx.fillRect(x0, top, letterWidth, midBarH);
+    // Middle bar (full width, same as E)
     const pBarY = midBarY + (midBarH - crossBarH) / 2;
     ctx.fillRect(x0, pBarY, letterWidth, crossBarH);
+    // Bottom stub — left-aligned square, same height as bars
+    const stubWidth = midBarH; // square: width = height
+    ctx.fillRect(x0, top + bandH * 4, stubWidth, midBarH);
   })();
 
   // ---- H: Block H — crossbar aligns with E's middle bar ----
