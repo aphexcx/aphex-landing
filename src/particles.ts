@@ -98,22 +98,19 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.fillRect(x0, midY, letterWidth, stroke);
   })();
 
-  // ---- E: Block E with 3 prongs and 2 gaps (slotted/striped) ----
+  // ---- E: Three independent horizontal bars (≡ style, NO left vertical stem) ----
   (function drawE(): void {
     const x0 = letterX(3);
     const top = padTop;
-    // Three horizontal prongs separated by two gaps
-    // Divide letterHeight into 5 equal bands: prong, gap, prong, gap, prong
+    // Three horizontal bars with equal gaps — like the ≡ symbol
+    // Divide letterHeight into 5 equal bands: bar, gap, bar, gap, bar
     const bandH = letterHeight / 5;
 
-    // Left vertical stem (full height)
-    ctx.fillRect(x0, top, stroke, letterHeight);
-
-    // Top prong
+    // Top bar
     ctx.fillRect(x0, top, letterWidth, bandH);
-    // Middle prong
+    // Middle bar
     ctx.fillRect(x0, top + bandH * 2, letterWidth, bandH);
-    // Bottom prong
+    // Bottom bar
     ctx.fillRect(x0, top + bandH * 4, letterWidth, bandH);
   })();
 
@@ -259,20 +256,74 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-  // --- Particle material ---
-  const material = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 0.04,
-    sizeAttenuation: true,
+  // --- Custom glow shader material ---
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+    },
+    vertexShader: `
+      attribute float size;
+      uniform float uTime;
+      uniform float uPixelRatio;
+      varying float vAlpha;
+      varying float vFlicker;
+
+      void main() {
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        float dist = -mvPosition.z;
+
+        // Per-particle flicker based on position hash + time
+        float hash = fract(sin(dot(position.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        vFlicker = 0.6 + 0.4 * sin(uTime * (3.0 + hash * 5.0) + hash * 6.283);
+
+        // Size with distance attenuation — bigger for glow halo effect
+        float baseSize = size * 280.0 * uPixelRatio;
+        gl_PointSize = baseSize / dist;
+
+        // Alpha falls off with distance
+        vAlpha = clamp(1.2 / dist, 0.15, 1.0);
+
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying float vAlpha;
+      varying float vFlicker;
+
+      void main() {
+        // Distance from center of point sprite (0 at center, 1 at edge)
+        vec2 center = gl_PointCoord - 0.5;
+        float dist = length(center) * 2.0;
+
+        // Soft gaussian glow — bright core fading to soft halo
+        float core = exp(-dist * dist * 8.0);   // tight bright center
+        float halo = exp(-dist * dist * 2.0);    // wider soft glow
+        float glow = core * 0.7 + halo * 0.3;
+
+        // Apply flicker
+        glow *= vFlicker;
+
+        // Slight warm tint at the edges of the halo
+        vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.85, 0.9, 1.0), dist * 0.5);
+
+        gl_FragColor = vec4(color * glow, glow * vAlpha);
+      }
+    `,
     transparent: true,
-    opacity: 0.85,
     blending: THREE.AdditiveBlending,
-    depthWrite: false
+    depthWrite: false,
   });
 
   // --- Points mesh ---
   const points = new THREE.Points(geometry, material);
   scene.add(points);
+
+  // --- Ambient point lights for subtle 3D illumination ---
+  const pointLight1 = new THREE.PointLight(0xffffff, 0.4, 30);
+  const pointLight2 = new THREE.PointLight(0xaaccff, 0.3, 25);
+  const pointLight3 = new THREE.PointLight(0xffeedd, 0.2, 20);
+  scene.add(pointLight1, pointLight2, pointLight3);
 
   // --- Camera positions for each phase ---
   const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
@@ -286,6 +337,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
   });
 
   // --- Mouse/touch interaction ---
@@ -325,7 +377,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   }
 
   // --- Phase management ---
-  const COALESCE_DURATION = 2.5; // seconds
+  const COALESCE_DURATION = 5.5; // seconds — slow, organic gathering
   let phase: string;
   let phaseStartTime: number;
   const emailOverlay = document.getElementById('email-overlay');
@@ -486,10 +538,10 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         const py = currentPositions[i3 + 1];
         const pz = currentPositions[i3 + 2];
 
-        // Breathing offset (subtle oscillation target)
-        const breathX = Math.sin(now * 0.8 + seed) * 0.008;
-        const breathY = Math.cos(now * 0.6 + seed * 1.3) * 0.008;
-        const breathZ = Math.sin(now * 0.7 + seed * 0.7) * 0.004;
+        // Breathing offset — more visible wiggle in place
+        const breathX = Math.sin(now * 1.2 + seed) * 0.025;
+        const breathY = Math.cos(now * 0.9 + seed * 1.3) * 0.025;
+        const breathZ = Math.sin(now * 1.0 + seed * 0.7) * 0.015;
 
         const targetX = logoPositions[i3]     + breathX;
         const targetY = logoPositions[i3 + 1] + breathY;
@@ -530,6 +582,26 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         emailShown = true;
       }
     }
+
+    // Update shader time uniform
+    material.uniforms.uTime.value = now;
+
+    // Drift point lights around the scene for subtle 3D illumination
+    pointLight1.position.set(
+      Math.sin(now * 0.3) * 5,
+      Math.cos(now * 0.2) * 3,
+      Math.sin(now * 0.15) * 4 + 2
+    );
+    pointLight2.position.set(
+      Math.cos(now * 0.25) * 6,
+      Math.sin(now * 0.35) * 4,
+      Math.cos(now * 0.1) * 3 - 2
+    );
+    pointLight3.position.set(
+      Math.sin(now * 0.4) * 4,
+      Math.cos(now * 0.3) * 2,
+      5
+    );
 
     renderer.render(scene, camera);
   }
