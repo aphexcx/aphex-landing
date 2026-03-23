@@ -1,41 +1,50 @@
 // Aphex Landing — Particle System
 // Three.js r171 particle animation with logo coalesce and mouse interaction
 
+declare const THREE: typeof import('three');
+
+interface Window {
+  __NO_WEBGL?: boolean;
+}
+
+interface LogoTargets {
+  positions: Float32Array;
+  aspect: number;
+}
+
 /**
  * Generate target positions for particles by sampling filled pixels
  * from the APHEX logo drawn on an offscreen canvas.
- *
- * @param {number} particleCount — number of target positions to produce
- * @returns {{ positions: Float32Array, aspect: number }}
  */
-function generateLogoTargets(particleCount) {
-  var W = 1200, H = 300;
-  var canvas = document.createElement('canvas');
+function generateLogoTargets(particleCount: number): LogoTargets {
+  const W = 1200;
+  const H = 300;
+  const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
-  var ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d')!;
 
   // --- Letter metrics ---
   // 5 letters, each ~210px wide, with ~37px gaps between them
-  // Total: 5*210 + 4*37 = 1050+148 = 1198 ≈ 1200
-  var letterWidth = 210;
-  var gap = 37;
-  var padTop = 30;
-  var letterHeight = H - padTop * 2; // 240px tall
-  var stroke = 42; // stroke thickness for heavy/black weight
+  // Total: 5*210 + 4*37 = 1050+148 = 1198 ~ 1200
+  const letterWidth = 210;
+  const gap = 37;
+  const padTop = 30;
+  const letterHeight = H - padTop * 2; // 240px tall
+  const stroke = 42; // stroke thickness for heavy/black weight
 
-  function letterX(index) {
+  function letterX(index: number): number {
     return index * (letterWidth + gap) + (W - (5 * letterWidth + 4 * gap)) / 2;
   }
 
   ctx.fillStyle = '#fff';
 
   // ---- A: Wide triangular, pointed top, NO crossbar ----
-  (function drawA() {
-    var x0 = letterX(0);
-    var cx = x0 + letterWidth / 2;
-    var top = padTop;
-    var bot = padTop + letterHeight;
+  (function drawA(): void {
+    const x0 = letterX(0);
+    const cx = x0 + letterWidth / 2;
+    const top = padTop;
+    const bot = padTop + letterHeight;
     // outer triangle
     ctx.beginPath();
     ctx.moveTo(cx, top);
@@ -44,8 +53,8 @@ function generateLogoTargets(particleCount) {
     ctx.closePath();
     ctx.fill();
     // cut out inner triangle (no crossbar, just thick legs)
-    var inset = stroke * 1.35;
-    var innerTop = top + stroke * 2.2;
+    const inset = stroke * 1.35;
+    const innerTop = top + stroke * 2.2;
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();
@@ -58,11 +67,10 @@ function generateLogoTargets(particleCount) {
   })();
 
   // ---- P: Block P with squared/rectangular counter ----
-  (function drawP() {
-    var x0 = letterX(1);
-    var top = padTop;
-    var bot = padTop + letterHeight;
-    var bowlBottom = top + letterHeight * 0.55;
+  (function drawP(): void {
+    const x0 = letterX(1);
+    const top = padTop;
+    const bowlBottom = top + letterHeight * 0.55;
 
     // Full vertical stem
     ctx.fillRect(x0, top, stroke, letterHeight);
@@ -75,10 +83,10 @@ function generateLogoTargets(particleCount) {
   })();
 
   // ---- H: Standard block H ----
-  (function drawH() {
-    var x0 = letterX(2);
-    var top = padTop;
-    var midY = top + letterHeight / 2 - stroke / 2;
+  (function drawH(): void {
+    const x0 = letterX(2);
+    const top = padTop;
+    const midY = top + letterHeight / 2 - stroke / 2;
 
     // Left vertical
     ctx.fillRect(x0, top, stroke, letterHeight);
@@ -89,12 +97,12 @@ function generateLogoTargets(particleCount) {
   })();
 
   // ---- E: Block E with 3 prongs and 2 gaps (slotted/striped) ----
-  (function drawE() {
-    var x0 = letterX(3);
-    var top = padTop;
+  (function drawE(): void {
+    const x0 = letterX(3);
+    const top = padTop;
     // Three horizontal prongs separated by two gaps
     // Divide letterHeight into 5 equal bands: prong, gap, prong, gap, prong
-    var bandH = letterHeight / 5;
+    const bandH = letterHeight / 5;
 
     // Left vertical stem (full height)
     ctx.fillRect(x0, top, stroke, letterHeight);
@@ -108,11 +116,11 @@ function generateLogoTargets(particleCount) {
   })();
 
   // ---- X: Two thick diagonal strokes crossing ----
-  (function drawX() {
-    var x0 = letterX(4);
-    var top = padTop;
-    var bot = padTop + letterHeight;
-    var hw = stroke * 1.1; // half-width of each stroke at endpoints
+  (function drawX(): void {
+    const x0 = letterX(4);
+    const top = padTop;
+    const bot = padTop + letterHeight;
+    const hw = stroke * 1.1; // half-width of each stroke at endpoints
 
     // Forward slash stroke (\)
     ctx.beginPath();
@@ -134,21 +142,21 @@ function generateLogoTargets(particleCount) {
   })();
 
   // --- Pixel sampling ---
-  var imageData = ctx.getImageData(0, 0, W, H);
-  var pixels = imageData.data;
+  const imageData = ctx.getImageData(0, 0, W, H);
+  const pixels = imageData.data;
 
   // Collect all filled pixel coordinates
-  var filled = [];
-  for (var y = 0; y < H; y++) {
-    for (var x = 0; x < W; x++) {
-      var idx = (y * W + x) * 4;
+  const filled: number[] = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const idx = (y * W + x) * 4;
       if (pixels[idx + 3] > 128) {
         filled.push(x, y);
       }
     }
   }
 
-  var filledCount = filled.length / 2;
+  const filledCount = filled.length / 2;
   if (filledCount === 0) {
     // Safety fallback: return centered zeros
     return { positions: new Float32Array(particleCount * 3), aspect: W / H };
@@ -156,17 +164,17 @@ function generateLogoTargets(particleCount) {
 
   // Map pixel coordinates to 3D world coordinates
   // Logo spans ~10 world units wide, centered at origin
-  var worldWidth = 10;
-  var scale = worldWidth / W;
-  var offsetX = -worldWidth / 2;
-  var offsetY = (H * scale) / 2;
+  const worldWidth = 10;
+  const scale = worldWidth / W;
+  const offsetX = -worldWidth / 2;
+  const offsetY = (H * scale) / 2;
 
-  var positions = new Float32Array(particleCount * 3);
+  const positions = new Float32Array(particleCount * 3);
 
-  for (var i = 0; i < particleCount; i++) {
-    var ri = Math.floor(Math.random() * filledCount);
-    var px = filled[ri * 2];
-    var py = filled[ri * 2 + 1];
+  for (let i = 0; i < particleCount; i++) {
+    const ri = Math.floor(Math.random() * filledCount);
+    const px = filled[ri * 2];
+    const py = filled[ri * 2 + 1];
 
     positions[i * 3]     = px * scale + offsetX;
     positions[i * 3 + 1] = -(py * scale) + offsetY; // flip Y
@@ -179,34 +187,34 @@ function generateLogoTargets(particleCount) {
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
-(function main() {
+(function main(): void {
   'use strict';
 
   // Skip if WebGL detection already failed
   if (window.__NO_WEBGL) return;
 
   // --- Device detection ---
-  var isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
-  var PARTICLE_COUNT = isMobile ? 4000 : 8000;
-  var DRIFT_DURATION = isMobile ? 2.0 : 4.0; // seconds
-  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
+  const PARTICLE_COUNT = isMobile ? 4000 : 8000;
+  const DRIFT_DURATION = isMobile ? 2.0 : 4.0; // seconds
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // --- Generate logo target positions ---
-  var logo = generateLogoTargets(PARTICLE_COUNT);
-  var logoPositions = logo.positions; // Float32Array, length = PARTICLE_COUNT * 3
+  const logo = generateLogoTargets(PARTICLE_COUNT);
+  const logoPositions = logo.positions; // Float32Array, length = PARTICLE_COUNT * 3
 
   // --- Three.js setup ---
-  var scene = new THREE.Scene();
+  const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
 
-  var camera = new THREE.PerspectiveCamera(
+  const camera = new THREE.PerspectiveCamera(
     60,
     window.innerWidth / window.innerHeight,
     0.1,
     100
   );
 
-  var renderer = new THREE.WebGLRenderer({
+  const renderer = new THREE.WebGLRenderer({
     antialias: true
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -216,22 +224,22 @@ function generateLogoTargets(particleCount) {
   document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
   // --- Particle geometry ---
-  var geometry = new THREE.BufferGeometry();
-  var SCATTER_RADIUS = 15;
+  const geometry = new THREE.BufferGeometry();
+  const SCATTER_RADIUS = 15;
 
-  var currentPositions = new Float32Array(PARTICLE_COUNT * 3);
-  var scatterPositions = new Float32Array(PARTICLE_COUNT * 3);
-  var velocities       = new Float32Array(PARTICLE_COUNT * 3); // starts at 0
-  var sizes            = new Float32Array(PARTICLE_COUNT);
+  const currentPositions = new Float32Array(PARTICLE_COUNT * 3);
+  const scatterPositions = new Float32Array(PARTICLE_COUNT * 3);
+  const velocities       = new Float32Array(PARTICLE_COUNT * 3); // starts at 0
+  const sizes            = new Float32Array(PARTICLE_COUNT);
 
-  for (var i = 0; i < PARTICLE_COUNT; i++) {
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
     // Random scatter positions (spherical-ish distribution)
-    var theta = Math.random() * Math.PI * 2;
-    var phi   = Math.acos(2 * Math.random() - 1);
-    var r     = SCATTER_RADIUS * Math.cbrt(Math.random()); // cube root for uniform volume
-    var sx = r * Math.sin(phi) * Math.cos(theta);
-    var sy = r * Math.sin(phi) * Math.sin(theta);
-    var sz = r * Math.cos(phi);
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const r     = SCATTER_RADIUS * Math.cbrt(Math.random()); // cube root for uniform volume
+    const sx = r * Math.sin(phi) * Math.cos(theta);
+    const sy = r * Math.sin(phi) * Math.sin(theta);
+    const sz = r * Math.cos(phi);
 
     scatterPositions[i * 3]     = sx;
     scatterPositions[i * 3 + 1] = sy;
@@ -250,7 +258,7 @@ function generateLogoTargets(particleCount) {
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
   // --- Particle material ---
-  var material = new THREE.PointsMaterial({
+  const material = new THREE.PointsMaterial({
     color: 0xffffff,
     size: 0.04,
     sizeAttenuation: true,
@@ -261,36 +269,36 @@ function generateLogoTargets(particleCount) {
   });
 
   // --- Points mesh ---
-  var points = new THREE.Points(geometry, material);
+  const points = new THREE.Points(geometry, material);
   scene.add(points);
 
   // --- Camera positions for each phase ---
-  var CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
-  var CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
-  var CAM_REST         = new THREE.Vector3(0, 0, 12);   // framing distance
+  const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
+  const CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
+  const CAM_REST         = new THREE.Vector3(0, 0, 12);   // framing distance
 
   camera.position.copy(CAM_DRIFT_START);
 
   // --- Resize handler ---
-  window.addEventListener('resize', function () {
+  window.addEventListener('resize', function (): void {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
   // --- Mouse/touch interaction ---
-  var PUSH_RADIUS = 1.5;
-  var PUSH_STRENGTH = 0.15;
-  var SPRING_STIFFNESS = 0.03;
-  var DAMPING = 0.85;
+  const PUSH_RADIUS = 1.5;
+  const PUSH_STRENGTH = 0.15;
+  const SPRING_STIFFNESS = 0.03;
+  const DAMPING = 0.85;
 
-  var mouseWorld = new THREE.Vector3(9999, 9999, 0); // offscreen
-  var mouseNDC = new THREE.Vector2();
-  var raycaster = new THREE.Raycaster();
-  var intersectPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // z=0 plane
-  var intersectPoint = new THREE.Vector3();
+  const mouseWorld = new THREE.Vector3(9999, 9999, 0); // offscreen
+  const mouseNDC = new THREE.Vector2();
+  const raycaster = new THREE.Raycaster();
+  const intersectPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // z=0 plane
+  const intersectPoint = new THREE.Vector3();
 
-  function updateMouse(clientX, clientY) {
+  function updateMouse(clientX: number, clientY: number): void {
     mouseNDC.x = (clientX / window.innerWidth) * 2 - 1;
     mouseNDC.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouseNDC, camera);
@@ -300,33 +308,34 @@ function generateLogoTargets(particleCount) {
   }
 
   if (!reducedMotion) {
-    window.addEventListener('mousemove', function (e) {
+    window.addEventListener('mousemove', function (e: MouseEvent): void {
       updateMouse(e.clientX, e.clientY);
     });
-    window.addEventListener('touchmove', function (e) {
+    window.addEventListener('touchmove', function (e: TouchEvent): void {
       e.preventDefault();
       if (e.touches.length > 0) {
         updateMouse(e.touches[0].clientX, e.touches[0].clientY);
       }
     }, { passive: false });
-    window.addEventListener('touchend', function () {
+    window.addEventListener('touchend', function (): void {
       mouseWorld.set(9999, 9999, 0);
     });
   }
 
   // --- Phase management ---
-  var COALESCE_DURATION = 2.5; // seconds
-  var phase, phaseStartTime;
-  var emailOverlay = document.getElementById('email-overlay');
-  var emailShown = false;
+  const COALESCE_DURATION = 2.5; // seconds
+  let phase: string;
+  let phaseStartTime: number;
+  const emailOverlay = document.getElementById('email-overlay');
+  let emailShown = false;
 
   // Cubic ease-out: 1 - (1 - t)^3
-  function easeOutCubic(t) {
+  function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
   }
 
   // Linear interpolation helper
-  function lerp(a, b, t) {
+  function lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t;
   }
 
@@ -335,12 +344,12 @@ function generateLogoTargets(particleCount) {
     phase = 'rest';
     phaseStartTime = performance.now() / 1000;
     // Set particles directly to logo targets
-    for (var i = 0; i < PARTICLE_COUNT; i++) {
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
       currentPositions[i * 3]     = logoPositions[i * 3];
       currentPositions[i * 3 + 1] = logoPositions[i * 3 + 1];
       currentPositions[i * 3 + 2] = logoPositions[i * 3 + 2];
     }
-    geometry.attributes.position.needsUpdate = true;
+    (geometry.attributes.position as import('three').BufferAttribute).needsUpdate = true;
     camera.position.copy(CAM_REST);
     // Show email immediately
     if (emailOverlay) {
@@ -353,51 +362,51 @@ function generateLogoTargets(particleCount) {
   }
 
   // --- Pre-compute per-particle stagger for coalesce ---
-  var staggerOffsets = new Float32Array(PARTICLE_COUNT);
-  (function computeStagger() {
+  const staggerOffsets = new Float32Array(PARTICLE_COUNT);
+  (function computeStagger(): void {
     // Particles closer to their target arrive sooner
-    var maxDist = 0;
-    for (var i = 0; i < PARTICLE_COUNT; i++) {
-      var dx = scatterPositions[i * 3]     - logoPositions[i * 3];
-      var dy = scatterPositions[i * 3 + 1] - logoPositions[i * 3 + 1];
-      var dz = scatterPositions[i * 3 + 2] - logoPositions[i * 3 + 2];
-      var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    let maxDist = 0;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const dx = scatterPositions[i * 3]     - logoPositions[i * 3];
+      const dy = scatterPositions[i * 3 + 1] - logoPositions[i * 3 + 1];
+      const dz = scatterPositions[i * 3 + 2] - logoPositions[i * 3 + 2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       staggerOffsets[i] = d;
       if (d > maxDist) maxDist = d;
     }
     // Normalize to 0..1  (0 = arrives first, 1 = arrives last)
     if (maxDist > 0) {
-      for (var i = 0; i < PARTICLE_COUNT; i++) {
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
         staggerOffsets[i] /= maxDist;
       }
     }
   })();
 
   // Snapshot of camera at start of coalesce (set when transitioning)
-  var camCoalesceStart = new THREE.Vector3();
+  const camCoalesceStart = new THREE.Vector3();
 
   // --- Animate ---
-  function animate() {
+  function animate(): void {
     requestAnimationFrame(animate);
 
-    var now = performance.now() / 1000;
-    var elapsed = now - phaseStartTime;
+    const now = performance.now() / 1000;
+    const elapsed = now - phaseStartTime;
 
-    var posAttr = geometry.attributes.position;
+    const posAttr = geometry.attributes.position as import('three').BufferAttribute;
 
     if (phase === 'drift') {
       // --- Drift phase ---
-      var t = Math.min(elapsed / DRIFT_DURATION, 1);
+      const t = Math.min(elapsed / DRIFT_DURATION, 1);
 
       // Camera interpolation
       camera.position.lerpVectors(CAM_DRIFT_START, CAM_DRIFT_END, t);
 
       // Velocity-based drift with brownian motion and mouse push
-      for (var i = 0; i < PARTICLE_COUNT; i++) {
-        var i3 = i * 3;
-        var px = currentPositions[i3];
-        var py = currentPositions[i3 + 1];
-        var pz = currentPositions[i3 + 2];
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3;
+        const px = currentPositions[i3];
+        const py = currentPositions[i3 + 1];
+        const pz = currentPositions[i3 + 2];
 
         // Brownian: small random velocity additions
         velocities[i3]     += (Math.random() - 0.5) * 0.004;
@@ -410,11 +419,11 @@ function generateLogoTargets(particleCount) {
         velocities[i3 + 2] += (scatterPositions[i3 + 2] - pz) * 0.005;
 
         // Mouse push force
-        var dmx = px - mouseWorld.x;
-        var dmy = py - mouseWorld.y;
-        var distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
+        const dmx = px - mouseWorld.x;
+        const dmy = py - mouseWorld.y;
+        const distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
         if (distMouse < PUSH_RADIUS && distMouse > 0.001) {
-          var pushForce = PUSH_STRENGTH / (distMouse * distMouse);
+          const pushForce = PUSH_STRENGTH / (distMouse * distMouse);
           velocities[i3]     += (dmx / distMouse) * pushForce;
           velocities[i3 + 1] += (dmy / distMouse) * pushForce;
         }
@@ -438,19 +447,19 @@ function generateLogoTargets(particleCount) {
 
     } else if (phase === 'coalesce') {
       // --- Coalesce phase ---
-      var rawT = Math.min(elapsed / COALESCE_DURATION, 1);
+      const rawT = Math.min(elapsed / COALESCE_DURATION, 1);
 
       // Camera: cubic ease-out toward rest
-      var camT = easeOutCubic(rawT);
+      const camT = easeOutCubic(rawT);
       camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
 
       // Per-particle interpolation with stagger
-      for (var i = 0; i < PARTICLE_COUNT; i++) {
-        var i3 = i * 3;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3;
         // stagger: particle's local progress (delayed by distance)
-        var staggerDelay = staggerOffsets[i] * 0.4; // max 40% delay
-        var localT = Math.min(Math.max((rawT - staggerDelay) / (1 - staggerDelay), 0), 1);
-        var eased = easeOutCubic(localT);
+        const staggerDelay = staggerOffsets[i] * 0.4; // max 40% delay
+        const localT = Math.min(Math.max((rawT - staggerDelay) / (1 - staggerDelay), 0), 1);
+        const eased = easeOutCubic(localT);
 
         currentPositions[i3]     = lerp(scatterPositions[i3],     logoPositions[i3],     eased);
         currentPositions[i3 + 1] = lerp(scatterPositions[i3 + 1], logoPositions[i3 + 1], eased);
@@ -468,21 +477,21 @@ function generateLogoTargets(particleCount) {
       // --- Rest phase ---
 
       // Spring physics with breathing offset and mouse push
-      for (var i = 0; i < PARTICLE_COUNT; i++) {
-        var i3 = i * 3;
-        var seed = i * 0.1;
-        var px = currentPositions[i3];
-        var py = currentPositions[i3 + 1];
-        var pz = currentPositions[i3 + 2];
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3;
+        const seed = i * 0.1;
+        const px = currentPositions[i3];
+        const py = currentPositions[i3 + 1];
+        const pz = currentPositions[i3 + 2];
 
         // Breathing offset (subtle oscillation target)
-        var breathX = Math.sin(now * 0.8 + seed) * 0.008;
-        var breathY = Math.cos(now * 0.6 + seed * 1.3) * 0.008;
-        var breathZ = Math.sin(now * 0.7 + seed * 0.7) * 0.004;
+        const breathX = Math.sin(now * 0.8 + seed) * 0.008;
+        const breathY = Math.cos(now * 0.6 + seed * 1.3) * 0.008;
+        const breathZ = Math.sin(now * 0.7 + seed * 0.7) * 0.004;
 
-        var targetX = logoPositions[i3]     + breathX;
-        var targetY = logoPositions[i3 + 1] + breathY;
-        var targetZ = logoPositions[i3 + 2] + breathZ;
+        const targetX = logoPositions[i3]     + breathX;
+        const targetY = logoPositions[i3 + 1] + breathY;
+        const targetZ = logoPositions[i3 + 2] + breathZ;
 
         // Spring force toward target
         velocities[i3]     += (targetX - px) * SPRING_STIFFNESS;
@@ -490,11 +499,11 @@ function generateLogoTargets(particleCount) {
         velocities[i3 + 2] += (targetZ - pz) * SPRING_STIFFNESS;
 
         // Mouse push force (inverse-square within PUSH_RADIUS)
-        var dmx = px - mouseWorld.x;
-        var dmy = py - mouseWorld.y;
-        var distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
+        const dmx = px - mouseWorld.x;
+        const dmy = py - mouseWorld.y;
+        const distMouse = Math.sqrt(dmx * dmx + dmy * dmy);
         if (distMouse < PUSH_RADIUS && distMouse > 0.001) {
-          var pushForce = PUSH_STRENGTH / (distMouse * distMouse);
+          const pushForce = PUSH_STRENGTH / (distMouse * distMouse);
           velocities[i3]     += (dmx / distMouse) * pushForce;
           velocities[i3 + 1] += (dmy / distMouse) * pushForce;
         }

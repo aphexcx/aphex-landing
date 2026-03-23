@@ -1,0 +1,14 @@
+{
+  "name": "aphex-landing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aphex Corporation landing page",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/three": "^0.171.0"
+  }
+}
