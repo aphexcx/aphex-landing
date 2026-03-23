@@ -208,10 +208,12 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   // --- Three.js setup ---
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0a);
-  // 3D fog — linear fog that only dims particles BEHIND the logo plane,
-  // creating depth without darkening the logo itself.
-  // near/far are set after camera rest distance is computed.
-  const fog = new THREE.Fog(0x111111, 1, 100);
+  // 3D fog — thick during drift phase so particles glow through mist,
+  // fades away during coalesce so the logo is bright and crisp.
+  // Density is animated in the render loop.
+  const DRIFT_FOG_DENSITY = 0.06;  // atmospheric during drift
+  const REST_FOG_DENSITY  = 0.005; // nearly invisible when logo is displayed
+  const fog = new THREE.FogExp2(0x111111, DRIFT_FOG_DENSITY);
   scene.fog = fog;
 
   const camera = new THREE.PerspectiveCamera(
@@ -361,21 +363,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     return Math.max(BASE_REST_Z, minZ); // never closer than 12 on wide screens
   }
 
-  // Set fog so it starts just past the logo plane and fades out behind it.
-  // Logo particles sit at z≈0; camera sits at z=restZ.
-  // Distance from camera to logo = restZ.
-  // near = restZ * 0.9 → fog barely touches the logo
-  // far  = restZ * 2.5 → distant background particles fully fogged
-  function updateFogForDistance(rz: number): void {
-    fog.near = rz * 0.9;
-    fog.far  = rz * 2.5;
-  }
-
   const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
   const CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
-  const restZ = computeRestZ();
-  const CAM_REST         = new THREE.Vector3(0, 0, restZ);
-  updateFogForDistance(restZ);
+  const CAM_REST         = new THREE.Vector3(0, 0, computeRestZ());
 
   camera.position.copy(CAM_DRIFT_START);
 
@@ -385,9 +375,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
-    // Recompute rest distance and fog for new aspect ratio
+    // Recompute rest distance for new aspect ratio
     CAM_REST.z = computeRestZ();
-    updateFogForDistance(CAM_REST.z);
   });
 
   // --- Mouse/touch interaction ---
@@ -510,6 +499,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       // Camera interpolation
       camera.position.lerpVectors(CAM_DRIFT_START, CAM_DRIFT_END, t);
 
+      // Full fog during drift — particles glow through the mist
+      fog.density = DRIFT_FOG_DENSITY;
+
       // Velocity-based drift with brownian motion and mouse push
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const i3 = i * 3;
@@ -562,6 +554,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       const camT = easeOutCubic(rawT);
       camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
 
+      // Fade fog out as logo forms — lerp density from drift → rest
+      fog.density = DRIFT_FOG_DENSITY + (REST_FOG_DENSITY - DRIFT_FOG_DENSITY) * easeOutCubic(rawT);
+
       // Per-particle interpolation with stagger
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         const i3 = i * 3;
@@ -584,6 +579,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
 
     } else if (phase === 'rest') {
       // --- Rest phase ---
+      // Keep fog minimal so logo stays bright
+      fog.density = REST_FOG_DENSITY;
 
       // Spring physics with breathing offset and mouse push
       for (let i = 0; i < PARTICLE_COUNT; i++) {
