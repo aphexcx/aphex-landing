@@ -39,6 +39,12 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     return index * (letterWidth + gap) + (W - (5 * letterWidth + 4 * gap)) / 2;
   }
 
+  // Shared metrics for bar alignment across P, H, E
+  // E divides letterHeight into 5 equal bands: bar, gap, bar, gap, bar
+  const bandH = letterHeight / 5;
+  const midBarY = padTop + bandH * 2;  // Y position of middle bar (shared by P, H, E)
+  const midBarH = bandH;               // thickness of middle bar
+
   ctx.fillStyle = '#fff';
 
   // ---- A: Wide triangular, pointed top, NO crossbar ----
@@ -68,11 +74,12 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.restore();
   })();
 
-  // ---- P: Block P with squared/rectangular counter ----
+  // ---- P: Block P — bowl bottom aligns with E's middle bar ----
   (function drawP(): void {
     const x0 = letterX(1);
     const top = padTop;
-    const bowlBottom = top + letterHeight * 0.55;
+    // Bowl bottom = bottom edge of middle bar (aligned with E's middle bar)
+    const bowlBottom = midBarY + midBarH;
 
     // Full vertical stem
     ctx.fillRect(x0, top, stroke, letterHeight);
@@ -80,38 +87,34 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.fillRect(x0, top, letterWidth, stroke);
     // Right side of bowl
     ctx.fillRect(x0 + letterWidth - stroke, top, stroke, bowlBottom - top);
-    // Bottom of bowl
-    ctx.fillRect(x0, bowlBottom - stroke, letterWidth, stroke);
+    // Bottom of bowl — same Y and thickness as E's middle bar
+    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
   })();
 
-  // ---- H: Standard block H ----
+  // ---- H: Block H — crossbar aligns with E's middle bar ----
   (function drawH(): void {
     const x0 = letterX(2);
     const top = padTop;
-    const midY = top + letterHeight / 2 - stroke / 2;
 
     // Left vertical
     ctx.fillRect(x0, top, stroke, letterHeight);
     // Right vertical
     ctx.fillRect(x0 + letterWidth - stroke, top, stroke, letterHeight);
-    // Horizontal bar
-    ctx.fillRect(x0, midY, letterWidth, stroke);
+    // Horizontal bar — same Y and thickness as E's middle bar
+    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
   })();
 
   // ---- E: Three independent horizontal bars (≡ style, NO left vertical stem) ----
   (function drawE(): void {
     const x0 = letterX(3);
     const top = padTop;
-    // Three horizontal bars with equal gaps — like the ≡ symbol
-    // Divide letterHeight into 5 equal bands: bar, gap, bar, gap, bar
-    const bandH = letterHeight / 5;
 
     // Top bar
-    ctx.fillRect(x0, top, letterWidth, bandH);
-    // Middle bar
-    ctx.fillRect(x0, top + bandH * 2, letterWidth, bandH);
+    ctx.fillRect(x0, top, letterWidth, midBarH);
+    // Middle bar (same position shared with P and H)
+    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
     // Bottom bar
-    ctx.fillRect(x0, top + bandH * 4, letterWidth, bandH);
+    ctx.fillRect(x0, top + bandH * 4, letterWidth, midBarH);
   })();
 
   // ---- X: Two thick diagonal strokes crossing ----
