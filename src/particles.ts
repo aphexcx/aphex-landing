@@ -43,7 +43,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   // E divides letterHeight into 5 equal bands: bar, gap, bar, gap, bar
   const bandH = letterHeight / 5;
   const midBarY = padTop + bandH * 2;  // Y position of middle bar (shared by P, H, E)
-  const midBarH = bandH;               // thickness of middle bar
+  const midBarH = bandH;               // thickness for E's free-floating bars
+  const crossBarH = bandH * 0.7;       // optically corrected: thinner for H/P where bars are enclosed
 
   ctx.fillStyle = '#fff';
 
@@ -87,8 +88,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.fillRect(x0, top, letterWidth, stroke);
     // Right side of bowl
     ctx.fillRect(x0 + letterWidth - stroke, top, stroke, bowlBottom - top);
-    // Bottom of bowl — same Y and thickness as E's middle bar
-    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
+    // Bottom of bowl — vertically centered on E's middle bar, optically thinner
+    const pBarY = midBarY + (midBarH - crossBarH) / 2;
+    ctx.fillRect(x0, pBarY, letterWidth, crossBarH);
   })();
 
   // ---- H: Block H — crossbar aligns with E's middle bar ----
@@ -100,8 +102,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.fillRect(x0, top, stroke, letterHeight);
     // Right vertical
     ctx.fillRect(x0 + letterWidth - stroke, top, stroke, letterHeight);
-    // Horizontal bar — same Y and thickness as E's middle bar
-    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
+    // Horizontal bar — vertically centered on E's middle bar, optically thinner
+    const hBarY = midBarY + (midBarH - crossBarH) / 2;
+    ctx.fillRect(x0, hBarY, letterWidth, crossBarH);
   })();
 
   // ---- E: Three independent horizontal bars (≡ style, NO left vertical stem) ----
@@ -255,7 +258,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     currentPositions[i * 3 + 2] = sz;
 
     // Per-particle size variation
-    sizes[i] = 0.07 + Math.random() * 0.05;
+    sizes[i] = 0.09 + Math.random() * 0.06;
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
@@ -360,7 +363,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   });
 
   // --- Mouse/touch interaction ---
-  const PUSH_RADIUS = 0.8;
+  const PUSH_RADIUS = 0.45;
   const PUSH_STRENGTH = 0.15;
   const SPRING_STIFFNESS = 0.03;
   const DAMPING = 0.85;
