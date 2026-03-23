@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aphex</title>
+  <meta property="og:title" content="Aphex">
+  <meta property="og:description" content="Aphex Corporation">
+  <link rel="icon" href="favicon.ico">
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    canvas {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .fallback {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      z-index: 10;
+    }
+
+    .fallback-logo {
+      font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+      font-size: clamp(32px, 10vw, 120px);
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    .fallback-email {
+      margin-top: 2em;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: clamp(12px, 2vw, 18px);
+      letter-spacing: 0.15em;
+    }
+
+    .fallback-email a {
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: none;
+    }
+
+    .fallback-email a:hover {
+      color: #fff;
+    }
+
+    #email-overlay {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      padding-bottom: 15vh;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity 1s ease-in;
+      pointer-events: none;
+    }
+
+    #email-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #email-overlay a {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      font-size: clamp(12px, 1.5vw, 16px);
+      letter-spacing: 0.2em;
+      color: rgba(255, 255, 255, 0.4);
+      text-decoration: none;
+      text-transform: lowercase;
+    }
+
+    #email-overlay a:hover {
+      color: rgba(255, 255, 255, 0.8);
+    }
+  </style>
+</head>
+<body>
+  <noscript>
+    <div class="fallback">
+      <div class="fallback-logo">APHEX</div>
+      <div class="fallback-email">
+        <a href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+      </div>
+    </div>
+  </noscript>
+
+  <script>
+    (function() {
+      try {
+        var canvas = document.createElement('canvas');
+        var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) throw new Error('No WebGL');
+      } catch (e) {
+        var fallback = document.createElement('div');
+        fallback.className = 'fallback';
+
+        var logo = document.createElement('div');
+        logo.className = 'fallback-logo';
+        logo.textContent = 'APHEX';
+        fallback.appendChild(logo);
+
+        var emailWrap = document.createElement('div');
+        emailWrap.className = 'fallback-email';
+
+        var emailLink = document.createElement('a');
+        emailLink.href = 'mailto:hello@aphex.cx';
+        emailLink.textContent = 'hello@aphex.cx';
+        emailWrap.appendChild(emailLink);
+
+        fallback.appendChild(emailWrap);
+        document.body.appendChild(fallback);
+
+        window.__NO_WEBGL = true;
+      }
+    })();
+  </script>
+
+  <div id="email-overlay">
+    <a href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r171/three.min.js"></script>
+  <script src="js/particles.js"></script>
+</body>
+</html>
