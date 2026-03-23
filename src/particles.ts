@@ -345,9 +345,20 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   scene.add(pointLight1, pointLight2, pointLight3);
 
   // --- Camera positions for each phase ---
+  // Compute rest distance dynamically so the logo (10 world units wide) always
+  // fits within the viewport with 20% padding, regardless of aspect ratio.
+  const LOGO_WORLD_WIDTH = 10;
+  const LOGO_PADDING = 1.3; // 30% breathing room
+  const halfFovRad = (camera.fov / 2) * Math.PI / 180;
+
+  function computeRestZ(): number {
+    const minZ = (LOGO_WORLD_WIDTH * LOGO_PADDING / 2) / (Math.tan(halfFovRad) * camera.aspect);
+    return Math.max(12, minZ); // never closer than 12 on wide screens
+  }
+
   const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
   const CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
-  const CAM_REST         = new THREE.Vector3(0, 0, 12);   // framing distance
+  const CAM_REST         = new THREE.Vector3(0, 0, computeRestZ());
 
   camera.position.copy(CAM_DRIFT_START);
 
@@ -357,6 +368,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
+    // Recompute rest distance for new aspect ratio
+    CAM_REST.z = computeRestZ();
   });
 
   // --- Mouse/touch interaction ---
