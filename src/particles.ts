@@ -83,8 +83,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     // Top bar (full width, same as E)
     ctx.fillRect(x0, top, letterWidth, midBarH);
     // Middle bar (full width, same as E)
-    const pBarY = midBarY + (midBarH - crossBarH) / 2;
-    ctx.fillRect(x0, pBarY, letterWidth, crossBarH);
+    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
     // Bottom stub — left-aligned, same width as vertical stems
     ctx.fillRect(x0, top + bandH * 4, stroke, midBarH);
   })();
@@ -98,9 +97,8 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.fillRect(x0, top, stroke, letterHeight);
     // Right vertical
     ctx.fillRect(x0 + letterWidth - stroke, top, stroke, letterHeight);
-    // Horizontal bar — vertically centered on E's middle bar, optically thinner
-    const hBarY = midBarY + (midBarH - crossBarH) / 2;
-    ctx.fillRect(x0, hBarY, letterWidth, crossBarH);
+    // Horizontal bar — same as E's middle bar
+    ctx.fillRect(x0, midBarY, letterWidth, midBarH);
   })();
 
   // ---- E: Three independent horizontal bars (≡ style, NO left vertical stem) ----
