@@ -250,7 +250,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     currentPositions[i * 3 + 2] = sz;
 
     // Per-particle size variation
-    sizes[i] = 0.03 + Math.random() * 0.02;
+    sizes[i] = 0.05 + Math.random() * 0.04;
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
@@ -277,12 +277,12 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         float hash = fract(sin(dot(position.xy, vec2(12.9898, 78.233))) * 43758.5453);
         vFlicker = 0.6 + 0.4 * sin(uTime * (3.0 + hash * 5.0) + hash * 6.283);
 
-        // Size with distance attenuation — bigger for glow halo effect
-        float baseSize = size * 280.0 * uPixelRatio;
-        gl_PointSize = baseSize / dist;
+        // Size with distance attenuation — big for visible glow halo
+        float baseSize = size * 800.0 * uPixelRatio;
+        gl_PointSize = max(baseSize / dist, 2.0);
 
-        // Alpha falls off with distance
-        vAlpha = clamp(1.2 / dist, 0.15, 1.0);
+        // Alpha — keep bright
+        vAlpha = clamp(2.5 / dist, 0.3, 1.0);
 
         gl_Position = projectionMatrix * mvPosition;
       }
@@ -297,9 +297,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         float dist = length(center) * 2.0;
 
         // Soft gaussian glow — bright core fading to soft halo
-        float core = exp(-dist * dist * 8.0);   // tight bright center
-        float halo = exp(-dist * dist * 2.0);    // wider soft glow
-        float glow = core * 0.7 + halo * 0.3;
+        float core = exp(-dist * dist * 6.0);   // tight bright center
+        float halo = exp(-dist * dist * 1.5);   // wider soft glow
+        float glow = core * 0.8 + halo * 0.4;
 
         // Apply flicker
         glow *= vFlicker;
