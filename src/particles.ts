@@ -209,7 +209,10 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0a0a);
   // 3D fog — particles fade into grey mist at distance, like the Lionhead intro
-  scene.fog = new THREE.FogExp2(0x111111, 0.04);
+  // Density is set after camera rest distance is computed, so fog looks
+  // consistent regardless of how far back the camera needs to be.
+  const fog = new THREE.FogExp2(0x111111, 0.04);
+  scene.fog = fog;
 
   const camera = new THREE.PerspectiveCamera(
     60,
@@ -351,14 +354,24 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   const LOGO_PADDING = 1.3; // 30% breathing room
   const halfFovRad = (camera.fov / 2) * Math.PI / 180;
 
+  const BASE_REST_Z = 12;       // reference distance where fog density 0.04 looks right
+  const BASE_FOG_DENSITY = 0.04;
+
   function computeRestZ(): number {
     const minZ = (LOGO_WORLD_WIDTH * LOGO_PADDING / 2) / (Math.tan(halfFovRad) * camera.aspect);
-    return Math.max(12, minZ); // never closer than 12 on wide screens
+    return Math.max(BASE_REST_Z, minZ); // never closer than 12 on wide screens
+  }
+
+  // Scale fog so brightness is consistent at any camera distance
+  function updateFogForDistance(restZ: number): void {
+    fog.density = BASE_FOG_DENSITY * (BASE_REST_Z / restZ);
   }
 
   const CAM_DRIFT_START  = new THREE.Vector3(0, 0, 5);    // inside the cloud
   const CAM_DRIFT_END    = new THREE.Vector3(0.5, 0.3, 8);
-  const CAM_REST         = new THREE.Vector3(0, 0, computeRestZ());
+  const restZ = computeRestZ();
+  const CAM_REST         = new THREE.Vector3(0, 0, restZ);
+  updateFogForDistance(restZ);
 
   camera.position.copy(CAM_DRIFT_START);
 
@@ -368,8 +381,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
-    // Recompute rest distance for new aspect ratio
+    // Recompute rest distance and fog for new aspect ratio
     CAM_REST.z = computeRestZ();
+    updateFogForDistance(CAM_REST.z);
   });
 
   // --- Mouse/touch interaction ---
