@@ -204,7 +204,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
 
   // --- Three.js setup ---
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
+  scene.background = new THREE.Color(0x0a0a0a);
+  // 3D fog — particles fade into grey mist at distance, like the Lionhead intro
+  scene.fog = new THREE.FogExp2(0x111111, 0.04);
 
   const camera = new THREE.PerspectiveCamera(
     60,
@@ -256,11 +258,13 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-  // --- Custom glow shader material ---
+  // --- Custom glow shader material with fog support ---
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+      fogColor: { value: new THREE.Color(0x111111) },
+      fogDensity: { value: 0.04 },
     },
     vertexShader: `
       attribute float size;
@@ -268,6 +272,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       uniform float uPixelRatio;
       varying float vAlpha;
       varying float vFlicker;
+      varying float vFogFactor;
 
       void main() {
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -284,12 +289,18 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         // Alpha — keep bright
         vAlpha = clamp(2.5 / dist, 0.3, 1.0);
 
+        // Fog: exponential squared
+        float fogDepth = length(mvPosition.xyz);
+        vFogFactor = 1.0 - exp(-fogDensity * fogDensity * fogDepth * fogDepth);
+
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: `
+      uniform vec3 fogColor;
       varying float vAlpha;
       varying float vFlicker;
+      varying float vFogFactor;
 
       void main() {
         // Distance from center of point sprite (0 at center, 1 at edge)
@@ -304,15 +315,19 @@ function generateLogoTargets(particleCount: number): LogoTargets {
         // Apply flicker
         glow *= vFlicker;
 
-        // Slight warm tint at the edges of the halo
+        // Slight cool tint at the edges of the halo
         vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.85, 0.9, 1.0), dist * 0.5);
 
-        gl_FragColor = vec4(color * glow, glow * vAlpha);
+        // Mix with fog
+        vec3 finalColor = mix(color * glow, fogColor, vFogFactor);
+
+        gl_FragColor = vec4(finalColor, glow * vAlpha);
       }
     `,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    fog: true,
   });
 
   // --- Points mesh ---
