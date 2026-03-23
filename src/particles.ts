@@ -252,7 +252,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     currentPositions[i * 3 + 2] = sz;
 
     // Per-particle size variation
-    sizes[i] = 0.05 + Math.random() * 0.04;
+    sizes[i] = 0.07 + Math.random() * 0.05;
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
@@ -357,7 +357,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   });
 
   // --- Mouse/touch interaction ---
-  const PUSH_RADIUS = 1.5;
+  const PUSH_RADIUS = 0.8;
   const PUSH_STRENGTH = 0.15;
   const SPRING_STIFFNESS = 0.03;
   const DAMPING = 0.85;
@@ -402,6 +402,11 @@ function generateLogoTargets(particleCount: number): LogoTargets {
   // Cubic ease-out: 1 - (1 - t)^3
   function easeOutCubic(t: number): number {
     return 1 - Math.pow(1 - t, 3);
+  }
+
+  // Smooth ease-in-out for natural camera arcs
+  function easeInOutQuart(t: number): number {
+    return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
   }
 
   // Linear interpolation helper
@@ -519,9 +524,14 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       // --- Coalesce phase ---
       const rawT = Math.min(elapsed / COALESCE_DURATION, 1);
 
-      // Camera: cubic ease-out toward rest
-      const camT = easeOutCubic(rawT);
+      // Camera: smooth ease-in-out with subtle arc
+      const camT = easeInOutQuart(rawT);
+      // Interpolate with a slight vertical arc — camera dips then rises
       camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
+      // Add arc: sine curve peaks at midpoint, creating a natural swoop
+      const arcHeight = Math.sin(rawT * Math.PI) * 0.6;
+      camera.position.y += arcHeight;
+      camera.position.x += Math.sin(rawT * Math.PI) * -0.3; // slight lateral sweep
 
       // Per-particle interpolation with stagger
       for (let i = 0; i < PARTICLE_COUNT; i++) {
