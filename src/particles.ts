@@ -61,9 +61,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     ctx.lineTo(x0, bot);
     ctx.closePath();
     ctx.fill();
-    // cut out inner triangle (no crossbar, just thick legs)
+    // cut out inner triangle — inner peak aligns with top of E's middle bar
     const inset = stroke * 1.35;
-    const innerTop = top + stroke * 2.2;
+    const innerTop = midBarY;
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath();

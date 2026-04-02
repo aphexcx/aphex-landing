@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300">
+  <!-- APHEX Logo -->
+
+  <!-- A: Wide triangle, no crossbar -->
+  <g>
+    <polygon points="106,30 211,270 1,270" fill="white"/>
+    <polygon points="106,126 154.3,270 57.7,270" fill="black"/>
+  </g>
+
+  <!-- P: Top bar, middle bar, bottom-left stub -->
+  <g>
+    <rect x="248" y="30" width="210" height="48" fill="white"/>
+    <rect x="248" y="126" width="210" height="48" fill="white"/>
+    <rect x="248" y="222" width="42" height="48" fill="white"/>
+  </g>
+
+  <!-- H: Four corner stubs + floating crossbar -->
+  <g>
+    <rect x="495" y="30" width="42" height="48" fill="white"/>
+    <rect x="663" y="30" width="42" height="48" fill="white"/>
+    <rect x="495" y="222" width="42" height="48" fill="white"/>
+    <rect x="663" y="222" width="42" height="48" fill="white"/>
+    <rect x="495" y="126" width="210" height="48" fill="white"/>
+  </g>
+
+  <!-- E: Three horizontal bars -->
+  <g>
+    <rect x="742" y="30" width="210" height="48" fill="white"/>
+    <rect x="742" y="126" width="210" height="48" fill="white"/>
+    <rect x="742" y="222" width="210" height="48" fill="white"/>
+  </g>
+
+  <!-- X: Two diagonal strokes -->
+  <g>
+    <polygon points="989,30 1035.2,30 1199,270 1152.8,270" fill="white"/>
+    <polygon points="1152.8,30 1199,30 1035.2,270 989,270" fill="white"/>
+  </g>
+</svg>
