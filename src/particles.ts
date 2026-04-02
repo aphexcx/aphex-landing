@@ -272,7 +272,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       uTime: { value: 0 },
       uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
       fogColor: { value: new THREE.Color(0x111111) },
-      fogDensity: { value: 0.04 },
+      fogDensity: { value: DRIFT_FOG_DENSITY },
     },
     vertexShader: `
       attribute float size;
@@ -501,6 +501,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
 
       // Full fog during drift — particles glow through the mist
       fog.density = DRIFT_FOG_DENSITY;
+      material.uniforms.fogDensity.value = DRIFT_FOG_DENSITY;
 
       // Velocity-based drift with brownian motion and mouse push
       for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -555,7 +556,9 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       camera.position.lerpVectors(camCoalesceStart, CAM_REST, camT);
 
       // Fade fog out as logo forms — lerp density from drift → rest
-      fog.density = DRIFT_FOG_DENSITY + (REST_FOG_DENSITY - DRIFT_FOG_DENSITY) * easeOutCubic(rawT);
+      const coalesceFogDensity = DRIFT_FOG_DENSITY + (REST_FOG_DENSITY - DRIFT_FOG_DENSITY) * easeOutCubic(rawT);
+      fog.density = coalesceFogDensity;
+      material.uniforms.fogDensity.value = coalesceFogDensity;
 
       // Per-particle interpolation with stagger
       for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -581,6 +584,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       // --- Rest phase ---
       // Keep fog minimal so logo stays bright
       fog.density = REST_FOG_DENSITY;
+      material.uniforms.fogDensity.value = REST_FOG_DENSITY;
 
       // Spring physics with breathing offset and mouse push
       for (let i = 0; i < PARTICLE_COUNT; i++) {
