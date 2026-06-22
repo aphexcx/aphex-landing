@@ -72,7 +72,9 @@
       left: 0;
       right: 0;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5em;
       padding-bottom: 15vh;
       z-index: 1;
       opacity: 0;
@@ -85,7 +87,7 @@
       pointer-events: auto;
     }
 
-    #email-overlay a {
+    #email-overlay a.email {
       font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
       font-size: clamp(12px, 1.5vw, 16px);
       letter-spacing: 0.2em;
@@ -94,8 +96,25 @@
       text-transform: lowercase;
     }
 
-    #email-overlay a:hover {
+    #email-overlay a.email:hover {
       color: rgba(255, 255, 255, 0.8);
+    }
+
+    #email-overlay a.instagram {
+      display: inline-flex;
+      color: rgba(255, 255, 255, 0.4);
+      transition: color 0.3s ease, transform 0.3s ease;
+    }
+
+    #email-overlay a.instagram:hover {
+      color: rgba(255, 255, 255, 0.8);
+      transform: scale(1.1);
+    }
+
+    #email-overlay a.instagram svg {
+      width: clamp(22px, 2.4vw, 28px);
+      height: clamp(22px, 2.4vw, 28px);
+      display: block;
     }
   </style>
 </head>
@@ -141,7 +160,14 @@
   </script>
 
   <div id="email-overlay">
-    <a href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+    <a class="email" href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+    <a class="instagram" href="https://instagram.com/aphexcx" target="_blank" rel="noopener noreferrer" aria-label="Instagram (@aphexcx)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+      </svg>
+    </a>
   </div>
 
   <script src="dist/particles.js"></script>
