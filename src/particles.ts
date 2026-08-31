@@ -6,6 +6,9 @@ import * as THREE from 'three';
 declare global {
   interface Window {
     __NO_WEBGL?: boolean;
+    __beatCount?: number; // beats detected (show mode) — handy for remote debugging
+    __pulseDbg?: { bass: number; avg: number; level: number; env: number };
+    webkitAudioContext?: typeof AudioContext;
   }
 }
 
@@ -421,6 +424,8 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
       uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
       fogColor: { value: new THREE.Color(0x111111) },
       fogDensity: { value: DRIFT_FOG_DENSITY },
+      uBeat: { value: 0 },   // beat envelope (show mode audio pulse)
+      uLevel: { value: 0 },  // smoothed music loudness
     },
     vertexShader: `
       attribute float size;
@@ -462,6 +467,8 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
     `,
     fragmentShader: `
       uniform vec3 fogColor;
+      uniform float uBeat;
+      uniform float uLevel;
       varying float vAlpha;
       varying float vFlicker;
       varying float vFogFactor;
@@ -480,6 +487,10 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
         // Apply flicker; QR particles get a brightness boost for scan contrast
         glow *= vFlicker;
         glow *= 1.0 + 0.45 * vQr;
+
+        // Audio pulse (show mode): brief glow lift on each beat plus a slow
+        // swell with the music's loudness; both 0 when the mic is off
+        glow *= 1.0 + 0.30 * uBeat + 0.10 * uLevel;
 
         // Slight cool tint at the edges of the halo
         vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.85, 0.9, 1.0), dist * 0.5);
@@ -579,7 +590,62 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
     });
   }
 
+  // --- Audio-reactive pulse (show mode): subtle thump on detected beats ---
+  // Energy-flux beat detection on the bass band of the mic signal. Fails
+  // quietly (no pulse) if the mic is unavailable or permission is denied.
+  let beatEnv = 0;      // spikes to 1 on a detected beat, decays fast
+  let audioLevel = 0;   // slow-smoothed overall loudness (0..1)
+  let audioCtx: AudioContext | null = null;
+  let analyser: AnalyserNode | null = null;
+  let freqData: Uint8Array | null = null;
+  let micRequested = false;
+  let bassAvg = 0;
+  let bassPrev = 0;
+  let lastBeatAt = 0;
+
+  function startMic(): void {
+    if (micRequested) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    micRequested = true;
+    navigator.mediaDevices.getUserMedia({
+      audio: {
+        // Music, not speech: keep the dynamics the beat detector needs
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    }).then(function (stream: MediaStream): void {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audioCtx = new Ctx();
+      const source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.3;
+      // Widen the dB window: the default [-100,-30] rails loud signals at
+      // byte 255, flattening the kick-vs-bassline ratio the detector needs
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = 0;
+      source.connect(analyser);
+      freqData = new Uint8Array(analyser.frequencyBinCount);
+    }).catch(function (): void {
+      // Allow a retry on the next user gesture (some browsers require one)
+      micRequested = false;
+    });
+  }
+
   if (showMode) {
+    // Ask for the mic up front (kiosk setup moment); retry/resume on gesture
+    startMic();
+    const resumeAudio = function (): void {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(function (): void { /* ignore */ });
+      }
+      if (!micRequested) startMic();
+    };
+    window.addEventListener('touchend', resumeAudio);
+    window.addEventListener('click', resumeAudio);
+
     // Keep the display awake during shows (best effort; Guided Access is the
     // robust fallback on iPad)
     if ('wakeLock' in navigator) {
@@ -691,12 +757,16 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
   // Snapshot of camera at start of coalesce (set when transitioning)
   const camCoalesceStart = new THREE.Vector3();
 
+  let lastFrameTime = performance.now() / 1000;
+
   // --- Animate ---
   function animate(): void {
     requestAnimationFrame(animate);
 
     const now = performance.now() / 1000;
     const elapsed = now - phaseStartTime;
+    const dt = Math.min(Math.max(now - lastFrameTime, 0.001), 0.1);
+    lastFrameTime = now;
 
     const posAttr = geometry.attributes.position as import('three').BufferAttribute;
 
@@ -848,6 +918,51 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
         overlayShown = true;
       }
     }
+
+    // --- Audio pulse: beat detection + envelopes ---
+    if (analyser && freqData) {
+      analyser.getByteFrequencyData(freqData);
+
+      // Bass band ~20-165 Hz (bins 1..7 at fftSize 2048, 44.1/48 kHz).
+      // Convert the analyser's dB-scaled bytes back to linear power —
+      // ratios in dB space are too compressed for a reliable beat gate.
+      let bassPow = 0;
+      for (let b = 1; b <= 7; b++) {
+        const db = -90 + (freqData[b] / 255) * 90; // minDecibels..maxDecibels
+        bassPow += Math.pow(10, db / 10);
+      }
+      const bass = bassPow / 7; // 1.0 = all bins at 0 dBFS
+
+      // Overall loudness across the musical range (up to ~5.5 kHz)
+      let levelSum = 0;
+      for (let b = 0; b < 240; b++) levelSum += freqData[b];
+      const level = levelSum / (240 * 255);
+
+      // Rolling average of the bass energy (~1.5s window)
+      const aSlow = 1 - Math.exp(-dt / 1.5);
+      bassAvg += aSlow * (bass - bassAvg);
+
+      const aLevel = 1 - Math.exp(-dt / 0.25);
+      audioLevel += aLevel * (level - audioLevel);
+
+      // A beat = bass power rising and clearly above its recent average
+      // (linear power: a kick a few dB over a sustained bassline is >2x)
+      if (bass > Math.max(1.8 * bassAvg, 0.00001) && bass > bassPrev && now - lastBeatAt > 0.28) {
+        beatEnv = 1;
+        lastBeatAt = now;
+        window.__beatCount = (window.__beatCount || 0) + 1;
+      }
+      bassPrev = bass;
+      // Live tuning probe (also handy via remote inspector at the venue)
+      window.__pulseDbg = { bass: bass, avg: bassAvg, level: audioLevel, env: beatEnv };
+    }
+    beatEnv *= Math.exp(-dt * 5.5);
+
+    // Apply: subtle whole-field scale thump + glow lift (no-ops without mic)
+    const pulseScale = 1 + 0.035 * beatEnv;
+    points.scale.set(pulseScale, pulseScale, pulseScale);
+    material.uniforms.uBeat.value = beatEnv;
+    material.uniforms.uLevel.value = audioLevel;
 
     // Update shader time uniform
     material.uniforms.uTime.value = now;
