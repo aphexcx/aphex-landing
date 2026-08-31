@@ -124,7 +124,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     const bot = padTop + letterHeight;
     const hw = stroke * 1.1; // half-width of each stroke at endpoints
 
-    // Forward slash stroke (\\)
+    // Forward slash stroke (\)
     ctx.beginPath();
     ctx.moveTo(x0, top);
     ctx.lineTo(x0 + hw, top);
