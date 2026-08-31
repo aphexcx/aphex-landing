@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Aphex</title>
   <meta property="og:title" content="Aphex">
   <meta property="og:description" content="Aphex Corporation">
@@ -72,7 +74,9 @@
       left: 0;
       right: 0;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5em;
       padding-bottom: 15vh;
       z-index: 1;
       opacity: 0;
@@ -85,7 +89,7 @@
       pointer-events: auto;
     }
 
-    #email-overlay a {
+    #email-overlay a.email {
       font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
       font-size: clamp(12px, 1.5vw, 16px);
       letter-spacing: 0.2em;
@@ -94,8 +98,89 @@
       text-transform: lowercase;
     }
 
-    #email-overlay a:hover {
+    #email-overlay a.email:hover {
       color: rgba(255, 255, 255, 0.8);
+    }
+
+    #email-overlay a.instagram {
+      display: inline-flex;
+      color: rgba(255, 255, 255, 0.4);
+      transition: color 0.3s ease, transform 0.3s ease;
+    }
+
+    #email-overlay a.instagram:hover {
+      color: rgba(255, 255, 255, 0.8);
+      transform: scale(1.1);
+    }
+
+    #email-overlay a.instagram svg {
+      width: clamp(22px, 2.4vw, 28px);
+      height: clamp(22px, 2.4vw, 28px);
+      display: block;
+    }
+
+    /* --- Show mode (?show / #show): kiosk display — particles form the
+       logo and the Instagram QR; this overlay just adds the handle --- */
+    #show-overlay {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 4vh;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity 1.5s ease-in;
+      pointer-events: none;
+    }
+
+    .show-mode #show-overlay {
+      display: flex;
+    }
+
+    .show-mode #email-overlay {
+      display: none;
+    }
+
+    #show-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #show-overlay .show-handle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6em;
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      font-size: clamp(16px, 3vh, 32px);
+      letter-spacing: 0.2em;
+      color: rgba(255, 255, 255, 0.75);
+      text-decoration: none;
+    }
+
+    #show-overlay .show-handle svg {
+      width: 1.1em;
+      height: 1.1em;
+    }
+
+    /* Landscape show mode: the QR fills the height on the right, so the
+       handle sits under the compact logo in the left column
+       (logo center ≈ 21vw, logo bottom ≈ 57vh) */
+    @media (orientation: landscape) {
+      .show-mode #show-overlay {
+        right: auto;
+        bottom: auto;
+        left: 0;
+        top: 61vh;
+        width: 42vw;
+        padding-bottom: 0;
+      }
+
+      .show-mode #show-overlay .show-handle {
+        font-size: clamp(14px, 2.4vh, 26px);
+      }
     }
   </style>
 </head>
@@ -108,6 +193,16 @@
       </div>
     </div>
   </noscript>
+
+  <script>
+    // Show mode: kiosk display for live shows — logo + Instagram QR.
+    // Activate with ?show or #show (e.g. aphex.cx/?show)
+    (function() {
+      if (/[?&#]show\b/.test(window.location.search + window.location.hash)) {
+        document.documentElement.classList.add('show-mode');
+      }
+    })();
+  </script>
 
   <script>
     (function() {
@@ -141,7 +236,25 @@
   </script>
 
   <div id="email-overlay">
-    <a href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+    <a class="email" href="mailto:hello@aphex.cx">hello@aphex.cx</a>
+    <a class="instagram" href="https://instagram.com/aphexcx" target="_blank" rel="noopener noreferrer" aria-label="Instagram (@aphexcx)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+      </svg>
+    </a>
+  </div>
+
+  <div id="show-overlay">
+    <a class="show-handle" href="https://instagram.com/aphexcx" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+      </svg>
+      @aphexcx
+    </a>
   </div>
 
   <script src="dist/particles.js"></script>
