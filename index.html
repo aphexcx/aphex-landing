@@ -129,6 +129,7 @@
       display: none;
       flex-direction: column;
       align-items: center;
+      gap: 1.2vh;
       padding-bottom: 4vh;
       z-index: 1;
       opacity: 0;
@@ -165,20 +166,33 @@
       height: 1.1em;
     }
 
-    /* Landscape show mode: the QR fills the height on the right, so the
-       handle sits under the compact logo in the left column
-       (logo center ≈ 21vw, logo bottom ≈ 57vh) */
+    #show-overlay .show-cta {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      font-size: clamp(16px, 3vh, 32px);
+      letter-spacing: 0.2em;
+      color: rgba(255, 255, 255, 0.55);
+      text-transform: lowercase;
+      white-space: nowrap;
+    }
+
+    /* Landscape show mode: logo spans the top and the QR fills the rest of
+       the height, so the columns flanking the QR carry the CTA (left) and
+       the handle (right), vertically centered on the QR for symmetry */
     @media (orientation: landscape) {
       .show-mode #show-overlay {
-        right: auto;
         bottom: auto;
-        left: 0;
-        top: 61vh;
-        width: 42vw;
+        top: 62vh;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 0;
         padding-bottom: 0;
       }
 
+      .show-mode #show-overlay .show-cta,
       .show-mode #show-overlay .show-handle {
+        width: 28vw;
+        display: inline-flex;
+        justify-content: center;
         font-size: clamp(14px, 2.4vh, 26px);
       }
     }
@@ -247,6 +261,7 @@
   </div>
 
   <div id="show-overlay">
+    <div class="show-cta">scan to follow</div>
     <a class="show-handle" href="https://instagram.com/aphexcx" target="_blank" rel="noopener noreferrer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
