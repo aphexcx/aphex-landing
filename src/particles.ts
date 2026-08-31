@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-type QrLayout = 'none' | 'stacked' | 'side';
+type QrLayout = 'none' | 'stacked';
 
 interface LogoTargets {
   positions: Float32Array;
@@ -58,13 +58,11 @@ const QR_MATRIX = [
 /**
  * Generate target positions for particles by sampling filled pixels
  * from the APHEX logo drawn on an offscreen canvas.
- * In show mode the Instagram QR code joins the layout, so particles form both:
- *  - 'stacked' (portrait): full-width logo on top, QR below
- *  - 'side' (landscape):   compact logo on the left, QR as big as the
- *                          viewport height allows on the right
+ * In show mode ('stacked') the Instagram QR code joins the layout below the
+ * full-width logo, and the camera frames the stack as tightly as the viewport
+ * allows, so the QR gets as big as the page permits under a large logo.
  * The canvas itself only ever holds the logo (drawn at its native 1200x300
- * metrics); sampled logo pixels are then scaled/offset into the layout, and
- * QR targets are computed directly from QR_MATRIX.
+ * metrics); QR targets are computed directly from QR_MATRIX.
  */
 function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTargets {
   const LOGO_W = 1200;
@@ -85,25 +83,16 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
   let logoY: number;
   let qrX0 = 0;
   let qrY0 = 0;
-  if (qrLayout === 'side') {
-    // margin 45 | logo 456 wide, vertically centered | 100 quiet zone | QR 725 | margin 40
-    logoScale = 0.38;
-    W = 45 + LOGO_W * logoScale + 100 + QR_SIZE + 40; // 1366
-    H = QR_SIZE + 60;                                  // 785 — QR dominates the height
-    logoX = 45;
-    logoY = (H - LOGO_H * logoScale) / 2;
-    qrX0 = 45 + LOGO_W * logoScale + 100;
-    qrY0 = 30;
-  } else if (qrLayout === 'stacked') {
-    // logo band (300) + 110 gap/quiet zone + QR 725 + margin = 1135; content
-    // spans y 30..1105, so it stays vertically centered
+  if (qrLayout === 'stacked') {
+    // logo band (300, letters end at y=270) + 100px quiet-zone gap + QR 725
+    // + 25 margin = 1120
     logoScale = 1;
     W = LOGO_W;
-    H = 1135;
+    H = 1120;
     logoX = 0;
     logoY = 0;
     qrX0 = (W - QR_SIZE) / 2;
-    qrY0 = 380;
+    qrY0 = 370;
   } else {
     logoScale = 1;
     W = LOGO_W;
@@ -342,22 +331,14 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
 
   // --- Show mode (kiosk display: particles form the logo AND the Instagram QR) ---
   // The inline script in index.html sets the class from ?show / #show.
-  // Landscape gets the side-by-side layout (QR as big as the height allows);
-  // portrait stacks the QR under the full-width logo.
   const showMode = document.documentElement.classList.contains('show-mode');
-  const qrLayout: QrLayout = !showMode
-    ? 'none'
-    : (window.innerWidth > window.innerHeight ? 'side' : 'stacked');
+  const qrLayout: QrLayout = showMode ? 'stacked' : 'none';
 
   // --- Device detection ---
   const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
   // Show mode needs enough particles for QR modules to read as solid blobs
-  // (~6720 for the QR — see the budget in generateLogoTargets — plus the logo;
-  // the side layout's compact logo needs far fewer than the stacked one).
-  const PARTICLE_COUNT =
-    qrLayout === 'side'    ? 10000 :
-    qrLayout === 'stacked' ? (isMobile ? 14000 : 16000) :
-    (isMobile ? 4000 : 8000);
+  // (~6720 for the QR — see the budget in generateLogoTargets — plus the logo)
+  const PARTICLE_COUNT = showMode ? (isMobile ? 14000 : 16000) : (isMobile ? 4000 : 8000);
   const DRIFT_DURATION = isMobile ? 2.0 : 4.0; // seconds
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -423,14 +404,10 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
     currentPositions[i * 3 + 1] = sy;
     currentPositions[i * 3 + 2] = sz;
 
-    // Per-particle size variation — QR particles run bigger so modules read
-    // solid; the side layout's compact logo needs smaller particles to keep
-    // its letterforms from blobbing together
+    // Per-particle size variation — QR particles run bigger so modules read solid
     sizes[i] = qrFlags[i] > 0
       ? 0.15 + Math.random() * 0.05
-      : qrLayout === 'side'
-        ? 0.055 + Math.random() * 0.035
-        : 0.09 + Math.random() * 0.06;
+      : 0.09 + Math.random() * 0.06;
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
@@ -614,6 +591,36 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
         if (!document.hidden) requestWakeLock();
       });
     }
+
+    // Double-tap (or double-click) toggles fullscreen — Safari and Chrome on
+    // iPad have no persistent fullscreen UI of their own
+    const toggleFullscreen = function (): void {
+      const el = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => void;
+      };
+      const doc = document as Document & {
+        webkitFullscreenElement?: Element | null;
+        webkitExitFullscreen?: () => void;
+      };
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) {
+          doc.exitFullscreen().catch(function (): void { /* ignore */ });
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+      } else if (el.requestFullscreen) {
+        el.requestFullscreen().catch(function (): void { /* ignore */ });
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      }
+    };
+    let lastTap = 0;
+    window.addEventListener('touchend', function (): void {
+      const t = performance.now();
+      if (t - lastTap < 350) toggleFullscreen();
+      lastTap = t;
+    });
+    window.addEventListener('dblclick', toggleFullscreen);
   }
 
   // --- Phase management ---

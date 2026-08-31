@@ -165,16 +165,16 @@
       height: 1.1em;
     }
 
-    /* Landscape show mode: the QR fills the height on the right, so the
-       handle sits under the compact logo in the left column
-       (logo center ≈ 21vw, logo bottom ≈ 57vh) */
+    /* Landscape show mode: logo spans the top and the QR fills the rest of
+       the height, so the handle sits in the empty column right of the QR,
+       vertically centered on it */
     @media (orientation: landscape) {
       .show-mode #show-overlay {
-        right: auto;
+        left: auto;
         bottom: auto;
-        left: 0;
-        top: 61vh;
-        width: 42vw;
+        right: 0;
+        top: 62vh;
+        width: 28vw;
         padding-bottom: 0;
       }
 
