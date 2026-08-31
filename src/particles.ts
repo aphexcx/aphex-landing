@@ -488,9 +488,9 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
         glow *= vFlicker;
         glow *= 1.0 + 0.45 * vQr;
 
-        // Audio pulse (show mode): brief glow lift on each beat plus a slow
-        // swell with the music's loudness; both 0 when the mic is off
-        glow *= 1.0 + 0.30 * uBeat + 0.10 * uLevel;
+        // Audio pulse (show mode): brief brightness lift on each beat plus a
+        // slow swell with the music's loudness; both 0 when the mic is off
+        glow *= 1.0 + 0.40 * uBeat + 0.10 * uLevel;
 
         // Slight cool tint at the edges of the halo
         vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.85, 0.9, 1.0), dist * 0.5);
@@ -958,9 +958,7 @@ function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTar
     }
     beatEnv *= Math.exp(-dt * 5.5);
 
-    // Apply: subtle whole-field scale thump + glow lift (no-ops without mic)
-    const pulseScale = 1 + 0.035 * beatEnv;
-    points.scale.set(pulseScale, pulseScale, pulseScale);
+    // Apply: brightness-only pulse — the geometry never changes size
     material.uniforms.uBeat.value = beatEnv;
     material.uniforms.uLevel.value = audioLevel;
 
