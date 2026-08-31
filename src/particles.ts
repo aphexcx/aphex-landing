@@ -124,7 +124,7 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     const bot = padTop + letterHeight;
     const hw = stroke * 1.1; // half-width of each stroke at endpoints
 
-    // Forward slash stroke (\)
+    // Forward slash stroke (\\)
     ctx.beginPath();
     ctx.moveTo(x0, top);
     ctx.lineTo(x0 + hw, top);
@@ -415,12 +415,33 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     });
   }
 
+  // --- Show mode (kiosk display: logo + Instagram QR) ---
+  // The inline script in index.html sets the class from ?show / #show.
+  const showMode = document.documentElement.classList.contains('show-mode');
+
+  if (showMode) {
+    // Lift the logo above center so the QR code has room underneath
+    points.position.y = 1.3;
+
+    // Keep the display awake during shows (best effort; Guided Access is the
+    // robust fallback on iPad)
+    if ('wakeLock' in navigator) {
+      const requestWakeLock = function (): void {
+        navigator.wakeLock.request('screen').catch(function (): void { /* ignore */ });
+      };
+      requestWakeLock();
+      document.addEventListener('visibilitychange', function (): void {
+        if (!document.hidden) requestWakeLock();
+      });
+    }
+  }
+
   // --- Phase management ---
   const COALESCE_DURATION = 5.5; // seconds — slow, organic gathering
   let phase: string;
   let phaseStartTime: number;
-  const emailOverlay = document.getElementById('email-overlay');
-  let emailShown = false;
+  const overlay = document.getElementById(showMode ? 'show-overlay' : 'email-overlay');
+  let overlayShown = false;
 
   // Cubic ease-out: 1 - (1 - t)^3
   function easeOutCubic(t: number): number {
@@ -449,10 +470,10 @@ function generateLogoTargets(particleCount: number): LogoTargets {
     }
     (geometry.attributes.position as import('three').BufferAttribute).needsUpdate = true;
     camera.position.copy(CAM_REST);
-    // Show email immediately
-    if (emailOverlay) {
-      emailOverlay.classList.add('visible');
-      emailShown = true;
+    // Show overlay immediately
+    if (overlay) {
+      overlay.classList.add('visible');
+      overlayShown = true;
     }
   } else {
     phase = 'drift';
@@ -632,10 +653,10 @@ function generateLogoTargets(particleCount: number): LogoTargets {
       camera.position.x = CAM_REST.x + Math.sin(now * 0.15) * 0.05;
       camera.position.y = CAM_REST.y + Math.cos(now * 0.12) * 0.05;
 
-      // Show email overlay after 1s in rest
-      if (!emailShown && elapsed > 1 && emailOverlay) {
-        emailOverlay.classList.add('visible');
-        emailShown = true;
+      // Show overlay (email, or QR in show mode) after 1s in rest
+      if (!overlayShown && elapsed > 1 && overlay) {
+        overlay.classList.add('visible');
+        overlayShown = true;
       }
     }
 
