@@ -119,7 +119,8 @@
       display: block;
     }
 
-    /* --- Show mode (?show / #show): kiosk display with Instagram QR --- */
+    /* --- Show mode (?show / #show): kiosk display — particles form the
+       logo and the Instagram QR; this overlay just adds the handle --- */
     #show-overlay {
       position: fixed;
       bottom: 0;
@@ -128,8 +129,7 @@
       display: none;
       flex-direction: column;
       align-items: center;
-      gap: 2.5vh;
-      padding-bottom: 5vh;
+      padding-bottom: 4vh;
       z-index: 1;
       opacity: 0;
       transition: opacity 1.5s ease-in;
@@ -147,20 +147,6 @@
     #show-overlay.visible {
       opacity: 1;
       pointer-events: auto;
-    }
-
-    #show-overlay .qr-card {
-      background: #fff;
-      /* QR svg carries its own 4-module quiet zone; card padding adds a little more */
-      padding: clamp(6px, 1vh, 12px);
-      border-radius: clamp(12px, 2vh, 22px);
-      box-shadow: 0 0 80px rgba(255, 255, 255, 0.12);
-    }
-
-    #show-overlay .qr-card img {
-      display: block;
-      width: min(32vh, 55vw);
-      height: auto;
     }
 
     #show-overlay .show-handle {
@@ -243,9 +229,6 @@
   </div>
 
   <div id="show-overlay">
-    <div class="qr-card">
-      <img src="qr-instagram.svg" alt="QR code — follow @aphexcx on Instagram">
-    </div>
     <a class="show-handle" href="https://instagram.com/aphexcx" target="_blank" rel="noopener noreferrer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
