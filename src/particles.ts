@@ -9,9 +9,13 @@ declare global {
   }
 }
 
+type QrLayout = 'none' | 'stacked' | 'side';
+
 interface LogoTargets {
   positions: Float32Array;
   qrFlags: Float32Array; // 1 = particle belongs to the QR code (show mode)
+  contentW: number;      // world-unit extent of the full layout (for camera framing)
+  contentH: number;
   aspect: number;
 }
 
@@ -54,21 +58,59 @@ const QR_MATRIX = [
 /**
  * Generate target positions for particles by sampling filled pixels
  * from the APHEX logo drawn on an offscreen canvas.
- * In show mode (includeQR) the canvas is extended and the Instagram QR
- * code is drawn below the logo, so particles form both.
+ * In show mode the Instagram QR code joins the layout, so particles form both:
+ *  - 'stacked' (portrait): full-width logo on top, QR below
+ *  - 'side' (landscape):   compact logo on the left, QR as big as the
+ *                          viewport height allows on the right
+ * The canvas itself only ever holds the logo (drawn at its native 1200x300
+ * metrics); sampled logo pixels are then scaled/offset into the layout, and
+ * QR targets are computed directly from QR_MATRIX.
  */
-function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTargets {
-  const W = 1200;
+function generateLogoTargets(particleCount: number, qrLayout: QrLayout): LogoTargets {
+  const LOGO_W = 1200;
   const LOGO_H = 300;
-  // Conceptual layout height in show mode: logo band (300) + gap + QR (725)
-  // + margin = 1135. Content spans y 30..1105, so it stays vertically centered.
-  // The canvas itself only ever holds the logo; QR targets are computed
-  // directly from QR_MATRIX below.
-  const H = includeQR ? 1135 : LOGO_H;
   const canvas = document.createElement('canvas');
-  canvas.width = W;
+  canvas.width = LOGO_W;
   canvas.height = LOGO_H;
   const ctx = canvas.getContext('2d')!;
+
+  // --- Layout metrics (conceptual px; world = px / 120) ---
+  const QR_MODULE = 25;
+  const QR_SIZE = QR_MATRIX.length * QR_MODULE; // 725
+  // Logo remap within the layout + QR placement, per layout:
+  let W: number;      // full layout width
+  let H: number;      // full layout height
+  let logoScale: number;
+  let logoX: number;
+  let logoY: number;
+  let qrX0 = 0;
+  let qrY0 = 0;
+  if (qrLayout === 'side') {
+    // margin 45 | logo 456 wide, vertically centered | 100 quiet zone | QR 725 | margin 40
+    logoScale = 0.38;
+    W = 45 + LOGO_W * logoScale + 100 + QR_SIZE + 40; // 1366
+    H = QR_SIZE + 60;                                  // 785 — QR dominates the height
+    logoX = 45;
+    logoY = (H - LOGO_H * logoScale) / 2;
+    qrX0 = 45 + LOGO_W * logoScale + 100;
+    qrY0 = 30;
+  } else if (qrLayout === 'stacked') {
+    // logo band (300) + 110 gap/quiet zone + QR 725 + margin = 1135; content
+    // spans y 30..1105, so it stays vertically centered
+    logoScale = 1;
+    W = LOGO_W;
+    H = 1135;
+    logoX = 0;
+    logoY = 0;
+    qrX0 = (W - QR_SIZE) / 2;
+    qrY0 = 380;
+  } else {
+    logoScale = 1;
+    W = LOGO_W;
+    H = LOGO_H;
+    logoX = 0;
+    logoY = 0;
+  }
 
   // --- Letter metrics ---
   // 5 letters, each ~210px wide, with ~37px gaps between them
@@ -80,7 +122,7 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
   const stroke = 42; // stroke thickness for heavy/black weight
 
   function letterX(index: number): number {
-    return index * (letterWidth + gap) + (W - (5 * letterWidth + 4 * gap)) / 2;
+    return index * (letterWidth + gap) + (LOGO_W - (5 * letterWidth + 4 * gap)) / 2;
   }
 
   // Shared metrics for bar alignment across P, H, E
@@ -187,20 +229,29 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
     ctx.fill();
   })();
 
-  // --- Pixel sampling (logo band only) ---
-  const imageData = ctx.getImageData(0, 0, W, LOGO_H);
+  // --- Pixel sampling (logo canvas) ---
+  const imageData = ctx.getImageData(0, 0, LOGO_W, LOGO_H);
   const pixels = imageData.data;
 
   // Collect all filled pixel coordinates
   const filled: number[] = [];
   for (let y = 0; y < LOGO_H; y++) {
-    for (let x = 0; x < W; x++) {
-      const idx = (y * W + x) * 4;
+    for (let x = 0; x < LOGO_W; x++) {
+      const idx = (y * LOGO_W + x) * 4;
       if (pixels[idx + 3] > 128) {
         filled.push(x, y);
       }
     }
   }
+
+  // Map layout px coordinates to 3D world coordinates: 120px = 1 world unit
+  // (the full-width logo spans 10 world units, as before), layout centered
+  // at the origin.
+  const scale = 10 / LOGO_W;
+  const offsetX = -(W * scale) / 2;
+  const offsetY = (H * scale) / 2;
+  const contentW = W * scale;
+  const contentH = H * scale;
 
   const filledCount = filled.length / 2;
   if (filledCount === 0) {
@@ -208,39 +259,31 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
     return {
       positions: new Float32Array(particleCount * 3),
       qrFlags: new Float32Array(particleCount),
+      contentW: contentW,
+      contentH: contentH,
       aspect: W / H,
     };
   }
 
-  // Map pixel coordinates to 3D world coordinates
-  // Logo spans ~10 world units wide, centered at origin
-  const worldWidth = 10;
-  const scale = worldWidth / W;
-  const offsetX = -worldWidth / 2;
-  const offsetY = (H * scale) / 2;
-
   const positions = new Float32Array(particleCount * 3);
   const qrFlags = new Float32Array(particleCount);
 
-  // --- QR targets (show mode): jittered 3x3 grid inside every dark module ---
+  // --- QR targets (show mode): jittered 4x4 grid inside every dark module ---
   // Deterministic per-module coverage (rather than random sampling) so each
   // module reads as a solid blob a phone camera can binarize.
   let qrCount = 0;
-  if (includeQR) {
+  if (qrLayout !== 'none') {
     const n = QR_MATRIX.length;          // 29 modules
-    const moduleSize = 25;               // px, same conceptual units as the canvas
-    const qrSize = n * moduleSize;       // 725px
-    const qx0 = (W - qrSize) / 2;
-    const qy0 = 380;                     // 110px gap below logo band doubles as quiet zone
     const PER_MODULE = 16;               // 4x4 sub-grid
-
     let darkModules = 0;
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (QR_MATRIX[r].charAt(c) === '1') darkModules++;
       }
     }
-    const budget = Math.min(darkModules * PER_MODULE, Math.floor(particleCount / 2));
+    // ~420 dark modules x 16 = ~6720; the cap only bites if the particle
+    // budget is unexpectedly tight, thinning modules evenly below.
+    const budget = Math.min(darkModules * PER_MODULE, Math.floor(particleCount * 0.7));
 
     // Fill from the end of the arrays; the logo gets the remainder.
     // Outer loop over sub-grid passes so a tight budget thins all modules
@@ -254,8 +297,8 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
         for (let c = 0; c < n; c++) {
           if (QR_MATRIX[r].charAt(c) !== '1') continue;
           if (qrCount >= budget) break outer;
-          const px = qx0 + c * moduleSize + (gx + 0.5) * (moduleSize / 4) + (Math.random() - 0.5) * (moduleSize / 8);
-          const py = qy0 + r * moduleSize + (gy + 0.5) * (moduleSize / 4) + (Math.random() - 0.5) * (moduleSize / 8);
+          const px = qrX0 + c * QR_MODULE + (gx + 0.5) * (QR_MODULE / 4) + (Math.random() - 0.5) * (QR_MODULE / 8);
+          const py = qrY0 + r * QR_MODULE + (gy + 0.5) * (QR_MODULE / 4) + (Math.random() - 0.5) * (QR_MODULE / 8);
           positions[i * 3]     = px * scale + offsetX;
           positions[i * 3 + 1] = -(py * scale) + offsetY; // flip Y
           positions[i * 3 + 2] = (Math.random() - 0.5) * 0.06; // near-planar for crispness
@@ -267,19 +310,25 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
     }
   }
 
-  // --- Logo targets: random sampling of filled pixels ---
+  // --- Logo targets: random sampling of filled pixels, remapped into layout ---
   const logoCount = particleCount - qrCount;
   for (let i = 0; i < logoCount; i++) {
     const ri = Math.floor(Math.random() * filledCount);
-    const px = filled[ri * 2];
-    const py = filled[ri * 2 + 1];
+    const px = logoX + filled[ri * 2] * logoScale;
+    const py = logoY + filled[ri * 2 + 1] * logoScale;
 
     positions[i * 3]     = px * scale + offsetX;
     positions[i * 3 + 1] = -(py * scale) + offsetY; // flip Y
-    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.15; // small z-offset
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.15 * logoScale; // small z-offset
   }
 
-  return { positions: positions, qrFlags: qrFlags, aspect: W / H };
+  return {
+    positions: positions,
+    qrFlags: qrFlags,
+    contentW: contentW,
+    contentH: contentH,
+    aspect: W / H,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -293,13 +342,22 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
 
   // --- Show mode (kiosk display: particles form the logo AND the Instagram QR) ---
   // The inline script in index.html sets the class from ?show / #show.
+  // Landscape gets the side-by-side layout (QR as big as the height allows);
+  // portrait stacks the QR under the full-width logo.
   const showMode = document.documentElement.classList.contains('show-mode');
+  const qrLayout: QrLayout = !showMode
+    ? 'none'
+    : (window.innerWidth > window.innerHeight ? 'side' : 'stacked');
 
   // --- Device detection ---
   const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 1;
-  // Show mode needs more particles so the QR modules read as solid blobs
-  // (the QR takes up to half of them — see the budget in generateLogoTargets)
-  const PARTICLE_COUNT = showMode ? (isMobile ? 14000 : 16000) : (isMobile ? 4000 : 8000);
+  // Show mode needs enough particles for QR modules to read as solid blobs
+  // (~6720 for the QR — see the budget in generateLogoTargets — plus the logo;
+  // the side layout's compact logo needs far fewer than the stacked one).
+  const PARTICLE_COUNT =
+    qrLayout === 'side'    ? 10000 :
+    qrLayout === 'stacked' ? (isMobile ? 14000 : 16000) :
+    (isMobile ? 4000 : 8000);
   const DRIFT_DURATION = isMobile ? 2.0 : 4.0; // seconds
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -307,7 +365,7 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
   const BREATH_SCALE = showMode ? 0.4 : 1;
 
   // --- Generate logo target positions ---
-  const logo = generateLogoTargets(PARTICLE_COUNT, showMode);
+  const logo = generateLogoTargets(PARTICLE_COUNT, qrLayout);
   const logoPositions = logo.positions; // Float32Array, length = PARTICLE_COUNT * 3
   const qrFlags = logo.qrFlags;         // 1 = particle forms the QR code
 
@@ -365,10 +423,14 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
     currentPositions[i * 3 + 1] = sy;
     currentPositions[i * 3 + 2] = sz;
 
-    // Per-particle size variation — QR particles run bigger so modules read solid
+    // Per-particle size variation — QR particles run bigger so modules read
+    // solid; the side layout's compact logo needs smaller particles to keep
+    // its letterforms from blobbing together
     sizes[i] = qrFlags[i] > 0
       ? 0.15 + Math.random() * 0.05
-      : 0.09 + Math.random() * 0.06;
+      : qrLayout === 'side'
+        ? 0.055 + Math.random() * 0.035
+        : 0.09 + Math.random() * 0.06;
   }
 
   geometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
@@ -400,10 +462,12 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
         vQr = aQr;
 
         // Per-particle flicker based on position hash + time.
-        // QR particles stay near-steady so the code remains scannable.
+        // QR particles get a slow, subtle shimmer instead of the fast
+        // twinkle — alive, but stable enough for a camera to scan.
         float hash = fract(sin(dot(position.xy, vec2(12.9898, 78.233))) * 43758.5453);
         vFlicker = 0.6 + 0.4 * sin(uTime * (3.0 + hash * 5.0) + hash * 6.283);
-        vFlicker = mix(vFlicker, 0.95, aQr);
+        float qrFlicker = 0.88 + 0.10 * sin(uTime * (0.5 + hash * 0.9) + hash * 6.283);
+        vFlicker = mix(vFlicker, qrFlicker, aQr);
 
         // Size with distance attenuation — big for visible glow halo
         float baseSize = size * 800.0 * uPixelRatio;
@@ -438,7 +502,7 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
 
         // Apply flicker; QR particles get a brightness boost for scan contrast
         glow *= vFlicker;
-        glow *= 1.0 + 0.35 * vQr;
+        glow *= 1.0 + 0.45 * vQr;
 
         // Slight cool tint at the edges of the halo
         vec3 color = mix(vec3(1.0, 1.0, 1.0), vec3(0.85, 0.9, 1.0), dist * 0.5);
@@ -475,6 +539,13 @@ function generateLogoTargets(particleCount: number, includeQR: boolean): LogoTar
   const BASE_REST_Z = 12;
 
   function computeRestZ(): number {
+    if (showMode) {
+      // Frame the whole layout (logo + QR) as tightly as the viewport allows:
+      // the QR gets as big as the page permits, especially in landscape.
+      const zW = (logo.contentW * 1.03 / 2) / (Math.tan(halfFovRad) * camera.aspect);
+      const zH = (logo.contentH * 1.06 / 2) / Math.tan(halfFovRad);
+      return Math.max(zW, zH);
+    }
     const minZ = (LOGO_WORLD_WIDTH * LOGO_PADDING / 2) / (Math.tan(halfFovRad) * camera.aspect);
     return Math.max(BASE_REST_Z, minZ); // never closer than 12 on wide screens
   }

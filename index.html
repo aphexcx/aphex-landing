@@ -164,6 +164,24 @@
       width: 1.1em;
       height: 1.1em;
     }
+
+    /* Landscape show mode: the QR fills the height on the right, so the
+       handle sits under the compact logo in the left column
+       (logo center ≈ 21vw, logo bottom ≈ 57vh) */
+    @media (orientation: landscape) {
+      .show-mode #show-overlay {
+        right: auto;
+        bottom: auto;
+        left: 0;
+        top: 61vh;
+        width: 42vw;
+        padding-bottom: 0;
+      }
+
+      .show-mode #show-overlay .show-handle {
+        font-size: clamp(14px, 2.4vh, 26px);
+      }
+    }
   </style>
 </head>
 <body>
