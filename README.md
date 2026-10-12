@@ -25,7 +25,12 @@ A GitHub Pages site serves exactly one custom domain. The primary domain is set 
 
 ### DNS for the primary domain
 
-At the DNS provider for the primary domain (apex records point at GitHub Pages):
+Claim the domain on GitHub before publishing any DNS records, so no other Pages site can grab it in between:
+
+1. Verify the domain under your GitHub account's **Settings → Pages** (add the TXT record GitHub shows you and click Verify).
+2. Enter the domain in the repo's **Settings → Pages → Custom domain** and save.
+
+Then, at the DNS provider (apex records point at GitHub Pages):
 
 | Name | Type | Value |
 | --- | --- | --- |
@@ -39,7 +44,7 @@ At the DNS provider for the primary domain (apex records point at GitHub Pages):
 | `@` | AAAA | `2606:50c0:8003::153` |
 | `www` | CNAME | `aphexcx.github.io` |
 
-Remove any other A, AAAA or CNAME records on those names. Then in **Settings → Pages**, enter the domain, wait for the DNS check to pass, and tick **Enforce HTTPS**. Verifying the domain under GitHub **Settings → Pages** (account level) protects it from takeover.
+Remove any other A, AAAA or CNAME records on those names. Back in the repo's **Settings → Pages**, wait for the DNS check to pass, then tick **Enforce HTTPS**.
 
 ### Redirecting aphex.dj
 
@@ -54,4 +59,4 @@ Because Pages can't serve a second domain, `aphex.dj` forwards to `aphex.cx`. Pa
 
 ### Making aphex.dj the primary instead
 
-Swap the roles: put the GitHub Pages records above on `aphex.dj`, change the custom domain in **Settings → Pages** (and the `CNAME` file) to `aphex.dj`, re-enable **Enforce HTTPS**, then redirect `aphex.cx` to `aphex.dj` the same way.
+Swap the roles, following the same order as above: verify `aphex.dj` in your account's Pages settings, change the repo's custom domain (and the `CNAME` file) to `aphex.dj`, then put the GitHub Pages records above on `aphex.dj` and re-enable **Enforce HTTPS**. Finally, redirect `aphex.cx` to `aphex.dj` the same way.
